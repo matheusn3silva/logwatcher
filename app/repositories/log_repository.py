@@ -1,4 +1,5 @@
 from app.repositories.sql_server_connection import SQLServerConnection
+from app.models.log_table import LogTable
 
 class LogRepository:
     def __init__(self, connection: SQLServerConnection):
@@ -24,15 +25,19 @@ class LogRepository:
 
         return rows
 
-    def get_table_sizes(self):
-        conn = self._connection.connect()
+    def get_table_sizes(self, table_names: list[str]) -> list[LogTable]:
+        if not table_names:
+            return []
 
+        conn = self._connection.connect()
         cursor = conn.cursor()
 
-        query = """
+        placeholders = ",".join("?" for _ in table_names)
+
+        query = f"""
         SELECT
-            t.name AS TableName,
-            s.name AS SchemaName,
+            t.name,
+            s.name,
             SUM(p.rows) AS RowCounts,
             SUM(a.total_pages) * 8.0 / 1024 AS TotalSpaceMB,
             SUM(a.used_pages) * 8.0 / 1024 AS UsedSpaceMB
@@ -41,16 +46,27 @@ class LogRepository:
             ON t.object_id = i.object_id
         JOIN sys.partitions p
             ON i.object_id = p.object_id
-        AND i.index_id = p.index_id
+                AND i.index_id = p.index_id
         JOIN sys.allocation_units a
             ON p.partition_id = a.container_id
         JOIN sys.schemas s
             ON t.schema_id = s.schema_id
-        WHERE t.is_ms_shipped = 0
+        WHERE t.name in ({placeholders})
         GROUP BY t.name, s.name
-        ORDER BY TotalSpaceMB DESC;
+        ORDER BY TotalSpaceMB DESC
         """
 
-        cursor.execute(query)
+        cursor.execute(query, tuple(table_names))
 
-        return cursor.fetchall()
+        rows = cursor.fetchall()
+
+        return [
+            LogTable(
+                name=row[0],
+                schema=row[1],
+                rows=row[2],
+                total_mb=row[3],
+                used_mb=row[4]
+            )
+            for row in rows
+        ]
