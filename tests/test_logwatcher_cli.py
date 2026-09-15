@@ -39,10 +39,24 @@ def main():
 
         summary = service.analyze_tables(tables_text)
 
-        print(f"\nTabelas encontradas: {summary.total_tables}")
-        print(f"Total de linhas: {summary.total_rows:,}")
-        print(f"Espaço total: {summary.total_space_mb:.2f} MB")
-        print(f"Espaço utilizado: {summary.used_space_mb:.2f} MB")
+        print("\nArquivos de Log")
+        print("-" * 70)
+
+        log_data = [
+            [
+                log.logical_name,
+                f"{log.size_mb:.2f}"
+                f"{log.used_mb:.2f}"
+                f"{log.free_mb:.2f}"
+            ]
+            for log in summary.logs
+        ]
+
+        print(tabulate(
+            log_data,
+            headers=["Arquivo", "Tamanho MB", "Usado MB", "Livre MB"],
+            tablefmt="grid"
+        ))
         
         data = []
 
@@ -62,6 +76,15 @@ def main():
         )
 
         print(table)
+
+        print("\nResumo Geral")
+        print("-" * 70)
+        print(f"Tabelas monitoradas : {summary.total_tables}")
+        print(f"Total de linhas     : {summary.total_rows:,}")
+        print(f"Espaço das tabelas  : {summary.total_space_mb:.2f} MB")
+        print(f"Espaço utilizado    : {summary.used_space_mb:.2f} MB")
+        print(f"Tamanho do log      : {summary.total_log_size_mb:.2f} MB")
+        print(f"Log utilizado       : {summary.total_log_used_mb:.2f} MB")
 
     except Exception as e:
         print(f"\nErro: {e}")

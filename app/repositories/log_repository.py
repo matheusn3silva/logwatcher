@@ -1,5 +1,6 @@
 from app.repositories.sql_server_connection import SQLServerConnection
 from app.models.log_table import LogTable
+from app.models.log_file import LogFile
 
 class LogRepository:
     def __init__(self, connection: SQLServerConnection):
@@ -7,7 +8,6 @@ class LogRepository:
 
     def get_log_files(self):
         conn = self._connection.connect()
-
         cursor = conn.cursor()
 
         query = """
@@ -23,7 +23,14 @@ class LogRepository:
 
         rows = cursor.fetchall()
 
-        return rows
+        return [
+            LogFile(
+                logical_name=row[0],
+                size_mb=row[1],
+                used_mb=row[2]
+            )
+            for row in rows
+        ]
 
     def get_table_sizes(self, table_names: list[str]) -> list[LogTable]:
         if not table_names:
