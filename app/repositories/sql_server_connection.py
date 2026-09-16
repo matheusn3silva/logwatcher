@@ -41,14 +41,23 @@ class SQLServerConnection:
             self._connection.close()
             self._connection = None
 
-    def test_connection(self):
+    def test_connection(self) -> str:
+        conn = self.connect()
+        
+        cursor = conn.cursor()
+        cursor.execute("SELECT @@VERSION")
+                    
+        version = cursor.fetchone()
+        
+        return version[0]
+
+    def execute(self, query: str, params: tuple = ()) -> None:
+        conn = self.connect()
+        cursor = conn.cursor()
+
         try:
-            conn = self.connect()
-            cursor = conn.cursor()
-            cursor.execute("SELECT @@VERSION")
-            version = cursor.fetchone()
-
-            return version[0]
-
-        finally:
-            self.disconnect()
+            cursor.execute(query, params)
+            conn.commit()
+        except: 
+            conn.rollback()
+            raise

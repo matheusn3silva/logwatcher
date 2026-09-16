@@ -77,3 +77,9 @@ class LogRepository:
             )
             for row in rows
         ]
+
+    def truncate_table(self, schema: str, table: str) -> None:
+        query = f"TRUNCATE TABLE [{schema}].[{table}]"
+
+        self._connection.execute(query)
+    

@@ -1,6 +1,5 @@
+from app.services.connection_service import ConnectionService
 from app.config.database_config import DatabaseConfig
-from app.repositories.sql_server_connection import SQLServerConnection
-from app.repositories.log_repository import LogRepository
 from app.services.logwatcher_service import LogWatcherService
 from tabulate import tabulate
 
@@ -21,23 +20,69 @@ def main():
         password=password
     )
 
-    connection = SQLServerConnection(config)
-    repository = LogRepository(connection)
+    connection_service = ConnectionService()
 
-    service = LogWatcherService(repository)
+    summary = None
 
     try:
         print("\nConectando...")
 
-        version = connection.test_connection()
+        version = connection_service.connect(config)
         print("Conectado com sucesso!")
         print(f"SQL Server: {version.splitlines()[0]}")
 
-        tables_text = input(
-            "\nDigite as tabelas separadas por vírgula: "
-        )
+        service = LogWatcherService(connection_service.repository)
 
-        summary = service.analyze_database(tables_text)
+        while True:
+            print("\n=== MENU ===")
+            print("1 - Consultar Dashboard")
+            print("2 - Truncate Tabela")
+            print("0 - Sair")
+
+            option = input("Escolha: ")
+
+            if option == "1":
+                tables_text = input(
+                    "\nDigite as tabelas separadas por vírgula: "
+                )
+
+                if tables_text == "":
+                    print("\nERRO: A lista de tabelas não pode ser vazio.")
+                    continue
+                
+                summary = service.analyze_database(tables_text)
+            elif option == "2":
+
+                if summary is None:
+                    print("\nFaça uma consulta primeiro.")
+                    continue
+
+                print("\nTabelas Monitoradas")
+
+                for i, table in enumerate(summary.tables, start=1):
+                    print(f"{i} - {table.schema.upper()}.{table.name.upper()}")
+
+                choice = int(input("\nEscolha: ")) - 1
+
+                table = summary.tables[choice]
+
+                confirm = input(f"\nDigite SIM para truncar {table.schema.upper()}.{table.name.upper()}: ")
+
+                if confirm.upper() != "SIM":
+                    print("Operação cancelada.")
+                    continue
+
+                service.truncate_monitored_table(summary, choice)
+
+                print("\nTabela limpa com sucesso!")
+
+                summary = service.analyze_database(",".join(table.name for table in summary.tables))
+
+            elif option == "0":
+                break
+
+            else:
+                print("Opção inválida.")
 
         # ---------------- LOGS ----------------
         print("\nArquivos de Log")
@@ -93,7 +138,7 @@ def main():
         print(f"\nErro: {e}")
 
     finally:
-        connection.disconnect()
+        connection_service.disconnect()
 
 if __name__ == "__main__":
     main()

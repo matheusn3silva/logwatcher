@@ -31,3 +31,21 @@ class LogWatcherService:
             total_log_size_mb=total_log_size,
             total_log_used_mb=total_log_used
         )
+
+    def truncate_monitored_table(
+        self,
+        summary,
+        index: int
+    ):
+        if index < 0 or index >= len(summary.tables):
+            raise ValueError("Tabela inválida.")
+
+        table = summary.tables[index]
+
+        self._repository.truncate_table(
+            table.schema,
+            table.name
+        )
+
+        return table
+    
