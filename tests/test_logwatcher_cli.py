@@ -37,7 +37,7 @@ def main():
             "\nDigite as tabelas separadas por vírgula: "
         )
 
-        summary = service.analyze_tables(tables_text)
+        summary = service.analyze_database(tables_text)
 
         print("\nArquivos de Log")
         print("-" * 70)
@@ -45,8 +45,8 @@ def main():
         log_data = [
             [
                 log.logical_name,
-                f"{log.size_mb:.2f}"
-                f"{log.used_mb:.2f}"
+                f"{log.size_mb:.2f}",
+                f"{log.used_mb:.2f}",
                 f"{log.free_mb:.2f}"
             ]
             for log in summary.logs
@@ -54,7 +54,7 @@ def main():
 
         print(tabulate(
             log_data,
-            headers=["Arquivo", "Tamanho MB", "Usado MB", "Livre MB"],
+            headers=["Arquivo", "Espaço reservado MB", "Usado MB", "Livre MB"],
             tablefmt="grid"
         ))
         
@@ -71,7 +71,7 @@ def main():
 
         table = tabulate(
             data,
-            headers=["Tabela", "Linhas", "Total MB", "Usado MB"],
+            headers=["Tabela", "Linhas", "Espaço Reservado MB", "Usado MB"],
             tablefmt="grid"
         )
 

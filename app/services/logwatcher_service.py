@@ -6,7 +6,7 @@ class LogWatcherService:
     def __init__(self, repository: LogRepository):
         self._repository = repository
 
-    def analyze_tables(self, tables_text: str) -> DashboardSummary:
+    def analyze_database(self, tables_text: str) -> DashboardSummary:
         table_names = TableParser.parse(tables_text)
 
         tables = self._repository.get_table_sizes(table_names)
