@@ -45,7 +45,20 @@ class LogWatcherService:
 
         return table
 
-    def shrink_log(self, index: int, target_size_mb: int):
+    def delete_monitored_table(self, summary, index: int):
+        if index < 0 or index >= len(summary.tables):
+            raise ValueError("Tabela inválida.")
+
+        table = summary.tables[index]
+
+        self._repository.delete_table(
+            table.schema,
+            table.name
+        )
+        
+        return table
+
+    def shrink_log(self, index: int):
 
         logs = self._repository.get_log_files()
 
@@ -56,10 +69,7 @@ class LogWatcherService:
 
         before = log.size_mb
 
-        self._repository.shrink_log_file(
-            log.logical_name,
-            target_size_mb
-        )
+        self._repository.shrink_log_file(log.logical_name)
 
         return before
 

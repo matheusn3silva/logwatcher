@@ -36,11 +36,11 @@ def main():
         while True:
             print("\n=== MENU ===")
             print("1 - Consultar Dashboard")
-            print("2 - Truncate Tabela")
+            print("2 - Limpar Tabela")
             print("3 - Shrink do arquivo de Log")
             print("0 - Sair")
 
-            option = input("Escolha: ")
+            option = input("\nEscolha: ")
 
             if option == "1":
                 tables_text = input(
@@ -52,6 +52,56 @@ def main():
                     continue
                 
                 summary = service.analyze_database(tables_text)
+
+                # ---------------- LOGS ----------------
+                print("\nArquivos de Log")
+                print("-" * 70)
+                
+                log_data = [
+                    [
+                        log.logical_name,
+                        f"{log.size_mb:.2f}",
+                        f"{log.used_mb:.2f}",
+                        f"{log.free_mb:.2f}"
+                    ]
+                    for log in summary.logs
+                ]
+                
+                print(tabulate(
+                    log_data,
+                    headers=["Arquivo", "Espaço reservado MB", "Usado MB", "Livre MB"],
+                    tablefmt="grid"
+                ))
+                
+                # ---------------- TABELAS ----------------
+                print("\nTabelas Monitoradas")
+                print("-" * 70)
+                
+                table_data = [
+                    [
+                        table.name,
+                        f"{table.rows:,}",
+                        f"{table.total_mb:.2f}",
+                        f"{table.used_mb:.2f}",
+                    ]
+                    for table in summary.tables
+                ]
+                
+                print(tabulate(
+                    table_data,
+                    headers=["Tabela", "Linhas", "Espaço Reservado MB", "Usado MB"],
+                    tablefmt="grid"
+                ))
+                
+                # ---------------- RESUMO ----------------
+                print("\nResumo Geral")
+                print("-" * 70)
+                print(f"Tabelas monitoradas : {summary.total_tables}")
+                print(f"Total de linhas     : {summary.total_rows:,}")
+                print(f"Espaço das tabelas  : {summary.total_space_mb:.2f} MB")
+                print(f"Espaço utilizado    : {summary.used_space_mb:.2f} MB")
+                print(f"Tamanho do log      : {summary.total_log_size_mb:.2f} MB")
+                print(f"Log utilizado       : {summary.total_log_used_mb:.2f} MB")
             elif option == "2":
 
                 if summary is None:
@@ -63,21 +113,47 @@ def main():
                 for i, table in enumerate(summary.tables, start=1):
                     print(f"{i} - {table.schema.upper()}.{table.name.upper()}")
 
-                choice = int(input("\nEscolha: ")) - 1
+                choice_text = input("\nEscolha: ")
 
-                table = summary.tables[choice]
-
-                confirm = input(f"\nDigite SIM para truncar {table.schema.upper()}.{table.name.upper()}: ")
-
-                if confirm.upper() != "SIM":
-                    print("Operação cancelada.")
+                if not choice_text.isdigit():
+                    print("\nEscolha inválida.")
                     continue
 
-                service.truncate_monitored_table(summary, choice)
+                choice = int(choice_text) - 1
+                
+                if choice < 0 or choice >= len(summary.tables):
+                    print("\nTabela inválida.")
+                    continue
+                
+                print("\nModo de limpeza")
+                print("1 - TRUNCATE (mais rápido)")
+                print("2 - DELETE (mais seguro para FK)")
 
-                print("\nTabela limpa com sucesso!")
+                mode = input("\nEscolha: ")
+                
+                if mode not in ("1", "2"):
+                    print("\nModo inválido.")
+                    continue
+                
+                action = "TRUNCATE" if mode == "1" else "DELETE"
 
-                summary = service.analyze_database(",".join(table.name for table in summary.tables))
+                confirm = input(f"\nDigite SIM para executar em {table.schema.upper()}.{table.name.upper()}: ")
+
+                if confirm.upper() != "SIM":
+                    print("\nOperação cancelada.")
+                    continue
+
+                try:
+                    if mode == "1":
+                        service.truncate_monitored_table(summary, choice)
+                    else:
+                        service.delete_monitored_table(summary, choice)
+                        
+                    print(f"\n{action} executado com sucesso!")
+                    summary = service.analyze_database(",".join(table.name for table in summary.tables))
+                except Exception as e:
+                    print(f"\nNão foi possível executar o {action}.")
+                    print(f"Motivo: {e}")
 
             elif option == "3":
 
@@ -102,29 +178,39 @@ def main():
                         f" | Livre: {log.free_mb:.2f} MB"
                     )
 
-                choice = int(input("\nEscolha: ")) - 1
-
-                target = int(input("Novo tamanho (MB): "))
+                choice_text = input("\nEscolha: ")
+                
+                if not choice_text.isdigit():
+                    print("\nEscolha inválida.")
+                    continue
+                
+                choice = int(choice_text) - 1
+                
+                if choice < 0 or choice >= len(logs):
+                    print("\nArquivo inválido.")
+                    continue
 
                 print("\nAviso:")
+                print("- O LogWatcher tentará reduzir o arquivo automaticamente.")
+                print("- O SQL Server decidirá o menor tamanho possível.")
                 print("- O usuário precisa possuir privilégios de db_owner ou sysadmin.")
-                print("- O SHRINK pode não reduzir o arquivo caso o log não possa ser reutilizado.")
+                print("- Caso existam transações ativas, o tamanho pode não diminuir.")
 
                 confirm = input("\nDigite SIM para confirmar: ")
 
                 if confirm.upper() != "SIM":
-                    print("Operação cancelada.")
+                    print("\nOperação cancelada.")
                     continue
 
                 before = logs[choice].size_mb
 
-                service.shrink_log(choice, target)
+                service.shrink_log(choice)
 
                 _, logs = service.get_log_status()
 
                 after = logs[choice].size_mb
-
-                print("\nResultado")
+                
+                print("\nSHRINK realizado com sucesso! \n\nResultado:")
                 print("-" * 40)
                 print(f"Antes      : {before:.2f} MB")
                 print(f"Depois     : {after:.2f} MB")
@@ -136,55 +222,6 @@ def main():
             else:
                 print("Opção inválida.")
 
-        # ---------------- LOGS ----------------
-        print("\nArquivos de Log")
-        print("-" * 70)
-
-        log_data = [
-            [
-                log.logical_name,
-                f"{log.size_mb:.2f}",
-                f"{log.used_mb:.2f}",
-                f"{log.free_mb:.2f}"
-            ]
-            for log in summary.logs
-        ]
-
-        print(tabulate(
-            log_data,
-            headers=["Arquivo", "Espaço reservado MB", "Usado MB", "Livre MB"],
-            tablefmt="grid"
-        ))
-
-        # ---------------- TABELAS ----------------
-        print("\nTabelas Monitoradas")
-        print("-" * 70)
-
-        table_data = [
-            [
-                table.name,
-                f"{table.rows:,}",
-                f"{table.total_mb:.2f}",
-                f"{table.used_mb:.2f}",
-            ]
-            for table in summary.tables
-        ]
-
-        print(tabulate(
-            table_data,
-            headers=["Tabela", "Linhas", "Espaço Reservado MB", "Usado MB"],
-            tablefmt="grid"
-        ))
-
-        # ---------------- RESUMO ----------------
-        print("\nResumo Geral")
-        print("-" * 70)
-        print(f"Tabelas monitoradas : {summary.total_tables}")
-        print(f"Total de linhas     : {summary.total_rows:,}")
-        print(f"Espaço das tabelas  : {summary.total_space_mb:.2f} MB")
-        print(f"Espaço utilizado    : {summary.used_space_mb:.2f} MB")
-        print(f"Tamanho do log      : {summary.total_log_size_mb:.2f} MB")
-        print(f"Log utilizado       : {summary.total_log_used_mb:.2f} MB")
 
     except Exception as e:
         print(f"\nErro: {e}")

@@ -107,15 +107,19 @@ class LogRepository:
 
         self._connection.execute(query)
 
-    def shrink_log_file(self, logical_name: str, target_size_mb: int):
+    def delete_table(self, schema: str, table: str) -> None:
+        query = f"DELETE [{schema}].[{table}]"
+
+        self._connection.execute(query)
+
+    def shrink_log_file(self, logical_name: str):
         query = f"""
             DBCC SHRINKFILE (
                 [{logical_name}],
-                ?
+                0
             )
         """
 
-        self._connection.execute_dbcc(query, (target_size_mb,))
-
+        self._connection.execute_dbcc(query)
 
     
