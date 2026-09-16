@@ -39,6 +39,7 @@ def main():
 
         summary = service.analyze_database(tables_text)
 
+        # ---------------- LOGS ----------------
         print("\nArquivos de Log")
         print("-" * 70)
 
@@ -57,26 +58,28 @@ def main():
             headers=["Arquivo", "Espaço reservado MB", "Usado MB", "Livre MB"],
             tablefmt="grid"
         ))
-        
-        data = []
 
-        for table in summary.tables:
+        # ---------------- TABELAS ----------------
+        print("\nTabelas Monitoradas")
+        print("-" * 70)
 
-            data.append([
-                f"{table.name}",
-                f"{table.rows:,}", 
-                f"{table.total_mb:.2f}", 
-                f"{table.used_mb:.2f}"
-            ])
+        table_data = [
+            [
+                table.name,
+                f"{table.rows:,}",
+                f"{table.total_mb:.2f}",
+                f"{table.used_mb:.2f}",
+            ]
+            for table in summary.tables
+        ]
 
-        table = tabulate(
-            data,
+        print(tabulate(
+            table_data,
             headers=["Tabela", "Linhas", "Espaço Reservado MB", "Usado MB"],
             tablefmt="grid"
-        )
+        ))
 
-        print(table)
-
+        # ---------------- RESUMO ----------------
         print("\nResumo Geral")
         print("-" * 70)
         print(f"Tabelas monitoradas : {summary.total_tables}")
