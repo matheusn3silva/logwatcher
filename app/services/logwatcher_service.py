@@ -32,11 +32,7 @@ class LogWatcherService:
             total_log_used_mb=total_log_used
         )
 
-    def truncate_monitored_table(
-        self,
-        summary,
-        index: int
-    ):
+    def truncate_monitored_table(self, summary, index: int):
         if index < 0 or index >= len(summary.tables):
             raise ValueError("Tabela inválida.")
 
@@ -48,4 +44,29 @@ class LogWatcherService:
         )
 
         return table
+
+    def shrink_log(self, index: int, target_size_mb: int):
+
+        logs = self._repository.get_log_files()
+
+        if index < 0 or index >= len(logs):
+            raise ValueError("Log inválido.")
+
+        log = logs[index]
+
+        before = log.size_mb
+
+        self._repository.shrink_log_file(
+            log.logical_name,
+            target_size_mb
+        )
+
+        return before
+
+    def get_log_status(self):
+        status = self._repository.get_database_status()
+        logs = self._repository.get_log_files()
+
+        return status, logs
+
     

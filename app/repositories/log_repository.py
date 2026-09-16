@@ -1,6 +1,7 @@
 from app.repositories.sql_server_connection import SQLServerConnection
 from app.models.log_table import LogTable
 from app.models.log_file import LogFile
+from app.models.database_status import DatabaseStatus
 
 class LogRepository:
     def __init__(self, connection: SQLServerConnection):
@@ -20,8 +21,8 @@ class LogRepository:
         """
 
         cursor.execute(query)
-
         rows = cursor.fetchall()
+        cursor.close()
 
         return [
             LogFile(
@@ -31,6 +32,28 @@ class LogRepository:
             )
             for row in rows
         ]
+
+    def get_database_status(self) -> DatabaseStatus:
+        conn = self._connection.connect()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                name,
+                recovery_model_desc,
+                log_reuse_wait_desc
+            FROM sys.databases
+            WHERE name = DB_NAME()
+        """)
+
+        row = cursor.fetchone()
+        cursor.close()
+
+        return DatabaseStatus(
+            database_name=row[0],
+            recovery_model=row[1],
+            log_reuse_wait=row[2]
+        )
 
     def get_table_sizes(self, table_names: list[str]) -> list[LogTable]:
         if not table_names:
@@ -66,6 +89,7 @@ class LogRepository:
         cursor.execute(query, tuple(table_names))
 
         rows = cursor.fetchall()
+        cursor.close()
 
         return [
             LogTable(
@@ -82,4 +106,16 @@ class LogRepository:
         query = f"TRUNCATE TABLE [{schema}].[{table}]"
 
         self._connection.execute(query)
+
+    def shrink_log_file(self, logical_name: str, target_size_mb: int):
+        query = f"""
+            DBCC SHRINKFILE (
+                [{logical_name}],
+                ?
+            )
+        """
+
+        self._connection.execute_dbcc(query, (target_size_mb,))
+
+
     

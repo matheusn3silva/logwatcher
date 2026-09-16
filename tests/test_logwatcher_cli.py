@@ -37,6 +37,7 @@ def main():
             print("\n=== MENU ===")
             print("1 - Consultar Dashboard")
             print("2 - Truncate Tabela")
+            print("3 - Shrink do arquivo de Log")
             print("0 - Sair")
 
             option = input("Escolha: ")
@@ -77,6 +78,57 @@ def main():
                 print("\nTabela limpa com sucesso!")
 
                 summary = service.analyze_database(",".join(table.name for table in summary.tables))
+
+            elif option == "3":
+
+                status, logs = service.get_log_status()
+
+                print("\n" + "=" * 50)
+                print("STATUS DO LOG")
+                print("=" * 50)
+
+                print(f"Banco            : {status.database_name}")
+                print(f"Recovery Model   : {status.recovery_model}")
+                print(f"Reutilização Log : {status.log_reuse_wait}")
+                print(f"Explicação       : {status.log_reuse_message}")
+
+                print("\nArquivos de Log")
+
+                for i, log in enumerate(logs, start=1):
+                    print(
+                        f"{i} - {log.logical_name}"
+                        f" | Reservado: {log.size_mb:.2f} MB"
+                        f" | Usado: {log.used_mb:.2f} MB"
+                        f" | Livre: {log.free_mb:.2f} MB"
+                    )
+
+                choice = int(input("\nEscolha: ")) - 1
+
+                target = int(input("Novo tamanho (MB): "))
+
+                print("\nAviso:")
+                print("- O usuário precisa possuir privilégios de db_owner ou sysadmin.")
+                print("- O SHRINK pode não reduzir o arquivo caso o log não possa ser reutilizado.")
+
+                confirm = input("\nDigite SIM para confirmar: ")
+
+                if confirm.upper() != "SIM":
+                    print("Operação cancelada.")
+                    continue
+
+                before = logs[choice].size_mb
+
+                service.shrink_log(choice, target)
+
+                _, logs = service.get_log_status()
+
+                after = logs[choice].size_mb
+
+                print("\nResultado")
+                print("-" * 40)
+                print(f"Antes      : {before:.2f} MB")
+                print(f"Depois     : {after:.2f} MB")
+                print(f"Recuperado : {before - after:.2f} MB")
 
             elif option == "0":
                 break

@@ -11,23 +11,11 @@ class SQLServerConnection:
         if self._connection is not None:
             return self._connection
 
-        username = (
-            self._config.sa_username
-            if self._config.use_sa and self._config.sa_username
-            else self._config.username
-        )
-
-        password = (
-            self._config.sa_password
-            if self._config.use_sa and self._config.sa_password
-            else self._config.password
-        )
-
         connection_string = (
             f"Server={self._config.server};"
             f"Database={self._config.database};"
-            f"UID={username};"
-            f"PWD={password};"
+            f"UID={self._config.username};"
+            f"PWD={self._config.password};"
             "Encrypt=yes;"
             "TrustServerCertificate=yes;"
         )
@@ -61,3 +49,18 @@ class SQLServerConnection:
         except: 
             conn.rollback()
             raise
+
+    def execute_dbcc(self, query: str, params: tuple = ()):
+        conn = self.connect()
+
+        previous_autocommit = conn.autocommit
+
+        try:
+            conn.autocommit = True
+
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            cursor.close()
+
+        finally:
+            conn.autocommit = previous_autocommit
