@@ -85,4 +85,24 @@ class ConnectionProfileService:
 
         return None
 
-    
+    def update_profile(
+        self,
+        profile_id: str,
+        name: str,
+        server: str,
+        database: str,
+        username: str,
+        tables: list[str]
+    ):
+        profiles = self.load_profiles()
+
+        for profile in profiles:
+            if profile.id == profile_id:
+                profile.name = name
+                profile.server = server
+                profile.database = database
+                profile.username = username
+                profile.tables = tables
+                break
+
+        self.save_profiles(profiles)

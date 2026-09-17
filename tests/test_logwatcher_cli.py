@@ -1,6 +1,7 @@
 from app.services.connection_service import ConnectionService
 from app.config.database_config import DatabaseConfig
 from app.services.logwatcher_service import LogWatcherService
+from app.services.connection_profile_service import ConnectionProfileService
 from tabulate import tabulate
 
 def main():
@@ -8,10 +9,131 @@ def main():
     print("LogWatcher - Teste via Terminal")
     print("=" * 50)
 
-    server = input("Servidor: ")
-    database = input("Nome do Banco: ")
-    username = input("Usuário: ")
-    password = input("Senha: ")
+    profile_service = ConnectionProfileService()
+
+    profiles = profile_service.load_profiles()
+
+    if profiles:
+        for i, profile in enumerate(profiles, start=1):
+            print(f"{i} - {profile.name}")
+    else:
+        print("Nenhum perfil salvo.")
+
+    print("\nN - Novo perfil")
+    print("E - Editar perfil")
+    print("R - Remover perfil")
+
+    choice = input("\nEscolha: ").strip().upper()
+
+    selected_profile = None
+
+    if choice.isdigit():
+        index = int(choice) - 1
+
+        if 0 <= index < len(profiles):
+            selected_profile = profiles[index]
+        else:
+            print("Perfil inválido.")
+            return
+        
+    elif choice == "N":
+        name = input("Nome do perfil: ")
+        server = input("Servidor: ")
+        database = input("Nome do Banco: ")
+        username = input("Usuário: ")
+
+        table_text = input("Tabelas (separadas por vírgula): ")
+
+        tables = [
+            table.strip()
+            for table in table_text.split(",")
+            if table.strip()
+        ]
+
+        profile_service.create_profile(
+            name,
+            server,
+            database,
+            username,
+            tables
+        )
+
+        print("\nPerfil criado com sucesso!")
+
+        return
+
+    elif choice == "E":
+        if not profiles:
+            print("Nenhum perfil disponível.")
+            return
+
+        for i, profile in enumerate(profiles, start=1):
+            print(f"{i} - {profile.name}")
+
+        index = int(input("Escolha: ")) - 1
+
+        if not (0 <= index < len(profiles)):
+            print("Perfil inválido")
+            return
+
+        profile = profiles[index]
+
+        name = input(f"Nome ({profile.name}): ") or profile.name
+        server = input(f"Servidor ({profile.server}): ") or profile.server
+        database = input(f"Banco ({profile.database}): ") or profile.database
+        username = input(f"Usuário ({profile.username}): ") or profile.username
+
+        tables_text = input(f"Tabelas ({', '.join(profile.tables)}): ")
+
+        tables = (
+            [table.strip() for table in tables_text.split(",") if table.strip()]
+            if tables_text
+            else profile.tables
+        )
+
+        profile_service.update_profile(
+            profile.id,
+            name,
+            server,
+            database,
+            username,
+            tables
+        )
+
+        print("\nPerfil atualizado.")
+
+        return
+
+    elif choice == "R":
+        if not profiles:
+            print("Nenhum perfil disponível.")
+            return
+
+        for i, profile in enumerate(profiles, start=1):
+            print(f"{i} - {profile.name}")
+
+        index = int(input("Escolha: ")) - 1
+
+        if not (0 <= index < len(profiles)):
+            print("Perfil inválido.")
+            return
+
+        confirm = input(
+            f"Digite SIM para remover {profiles[index].name}: "
+        )
+
+        if confirm.upper() == "SIM":
+            profile_service.delete_profile(
+                profiles[index].id
+            )
+            print("Perfil removido.")
+
+        return
+
+    server = selected_profile.server
+    database = selected_profile.database
+    username = selected_profile.username
+    password = input(f"Senha para {username}: ")
 
     config = DatabaseConfig(
         server=server,
@@ -43,14 +165,17 @@ def main():
             option = input("\nEscolha: ")
 
             if option == "1":
-                tables_text = input(
-                    "\nDigite as tabelas separadas por vírgula: "
-                )
 
-                if tables_text == "":
-                    print("\nERRO: A lista de tabelas não pode ser vazio.")
+                if not selected_profile.tables:
+                    print("\nEste perfil não possui tabelas configuradas.")
+                    print("Edite o perfil e adicione pelo menos uma tabela.")
                     continue
                 
+                tables_text = ",".join(selected_profile.tables)
+
+                print("\nTabelas monitoradas:")
+                print(", ".join(selected_profile.tables))
+
                 summary = service.analyze_database(tables_text)
 
                 # ---------------- LOGS ----------------
@@ -124,6 +249,8 @@ def main():
                 if choice < 0 or choice >= len(summary.tables):
                     print("\nTabela inválida.")
                     continue
+
+                table = summary.tables[choice]
                 
                 print("\nModo de limpeza")
                 print("1 - TRUNCATE (mais rápido)")
