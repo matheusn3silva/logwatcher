@@ -85,6 +85,22 @@ class ConnectionProfileService:
 
         return None
 
+    def _merge_tables(
+            self,
+            current_tables: list[str],
+            new_tables: list[str]
+    ) -> list[str]:
+        existing = {table.lower() for table in current_tables}
+
+        result = current_tables.copy()
+
+        for table in new_tables:
+            if table.lower() not in existing:
+                result.append(table)
+                existing.add(table.lower())
+
+        return result
+
     def update_profile(
         self,
         profile_id: str,
@@ -102,7 +118,7 @@ class ConnectionProfileService:
                 profile.server = server
                 profile.database = database
                 profile.username = username
-                profile.tables = tables
+                profile.tables = self._merge_tables(profile.tables, tables)
                 break
 
         self.save_profiles(profiles)

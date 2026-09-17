@@ -11,128 +11,160 @@ def main():
 
     profile_service = ConnectionProfileService()
 
-    profiles = profile_service.load_profiles()
-
-    if profiles:
-        for i, profile in enumerate(profiles, start=1):
-            print(f"{i} - {profile.name}")
-    else:
-        print("Nenhum perfil salvo.")
-
-    print("\nN - Novo perfil")
-    print("E - Editar perfil")
-    print("R - Remover perfil")
-
-    choice = input("\nEscolha: ").strip().upper()
+    selected_profile = None
 
     selected_profile = None
 
-    if choice.isdigit():
-        index = int(choice) - 1
+    while selected_profile is None:
 
-        if 0 <= index < len(profiles):
-            selected_profile = profiles[index]
+        profiles = profile_service.load_profiles()
+
+        print("\nPerfis Salvos")
+        print("-" * 30)
+
+        if profiles:
+            for i, profile in enumerate(profiles, start=1):
+                print(f"{i} - {profile.name}")
         else:
-            print("Perfil inválido.")
-            return
-        
-    elif choice == "N":
-        name = input("Nome do perfil: ")
-        server = input("Servidor: ")
-        database = input("Nome do Banco: ")
-        username = input("Usuário: ")
+            print("\nNenhum perfil salvo.")
 
-        table_text = input("Tabelas (separadas por vírgula): ")
+        print("\nN - Novo perfil")
+        print("E - Editar perfil")
+        print("R - Remover perfil")
+        print("S - Sair")
 
-        tables = [
-            table.strip()
-            for table in table_text.split(",")
-            if table.strip()
-        ]
+        choice = input("\nEscolha: ").strip().upper()
 
-        profile_service.create_profile(
-            name,
-            server,
-            database,
-            username,
-            tables
-        )
+        if choice.isdigit():
 
-        print("\nPerfil criado com sucesso!")
+            index = int(choice) - 1
 
-        return
+            if 0 <= index < len(profiles):
+                selected_profile = profiles[index]
+            else:
+                print("\nPerfil inválido.")
 
-    elif choice == "E":
-        if not profiles:
-            print("Nenhum perfil disponível.")
-            return
+        elif choice == "N":
 
-        for i, profile in enumerate(profiles, start=1):
-            print(f"{i} - {profile.name}")
+            name = input("Nome do perfil: ")
+            server = input("Servidor: ")
+            database = input("Banco: ")
+            username = input("Usuário: ")
 
-        index = int(input("Escolha: ")) - 1
-
-        if not (0 <= index < len(profiles)):
-            print("Perfil inválido")
-            return
-
-        profile = profiles[index]
-
-        name = input(f"Nome ({profile.name}): ") or profile.name
-        server = input(f"Servidor ({profile.server}): ") or profile.server
-        database = input(f"Banco ({profile.database}): ") or profile.database
-        username = input(f"Usuário ({profile.username}): ") or profile.username
-
-        tables_text = input(f"Tabelas ({', '.join(profile.tables)}): ")
-
-        tables = (
-            [table.strip() for table in tables_text.split(",") if table.strip()]
-            if tables_text
-            else profile.tables
-        )
-
-        profile_service.update_profile(
-            profile.id,
-            name,
-            server,
-            database,
-            username,
-            tables
-        )
-
-        print("\nPerfil atualizado.")
-
-        return
-
-    elif choice == "R":
-        if not profiles:
-            print("Nenhum perfil disponível.")
-            return
-
-        for i, profile in enumerate(profiles, start=1):
-            print(f"{i} - {profile.name}")
-
-        index = int(input("Escolha: ")) - 1
-
-        if not (0 <= index < len(profiles)):
-            print("Perfil inválido.")
-            return
-
-        confirm = input(
-            f"Digite SIM para remover {profiles[index].name}: "
-        )
-
-        if confirm.upper() == "SIM":
-            profile_service.delete_profile(
-                profiles[index].id
+            tables_text = input(
+                "\nTabelas (separadas por vírgula): "
             )
-            print("Perfil removido.")
 
-        return
+            tables = [
+                table.strip()
+                for table in tables_text.split(",")
+                if table.strip()
+            ]
+
+            profile_service.create_profile(
+                name,
+                server,
+                database,
+                username,
+                tables
+            )
+
+            print("\nPerfil criado com sucesso!")
+
+        elif choice == "E":
+
+            if not profiles:
+                print("\nNenhum perfil disponível.")
+                continue
+
+            for i, profile in enumerate(profiles, start=1):
+                print(f"{i} - {profile.name}")
+
+            index_text = input("\nEscolha: ")
+
+            if not index_text.isdigit():
+                print("\nEscolha inválida.")
+                continue
+
+            index = int(index_text) - 1
+
+            if not (0 <= index < len(profiles)):
+                print("\nPerfil inválido.")
+                continue
+
+            profile = profiles[index]
+
+            name = input(f"Nome ({profile.name}): ") or profile.name
+            server = input(f"Servidor ({profile.server}): ") or profile.server
+            database = input(f"Banco ({profile.database}): ") or profile.database
+            username = input(f"Usuário ({profile.username}): ") or profile.username
+
+            print("\nTabelas atuais:")
+            for table in profile.tables:
+                print(f"- {table}")
+
+            tables_text = input(
+                "\nDigite novas tabelas (opcional): "
+            )
+            
+            tables = (
+                [t.strip() for t in tables_text.split(",") if t.strip()]
+                if tables_text
+                else profile.tables
+            )
+
+            profile_service.update_profile(
+                profile.id,
+                name,
+                server,
+                database,
+                username,
+                tables
+            )
+
+            print("\nPerfil atualizado.")
+
+        elif choice == "R":
+
+            if not profiles:
+                print("\nNenhum perfil disponível.")
+                continue
+
+            for i, profile in enumerate(profiles, start=1):
+                print(f"{i} - {profile.name}")
+
+            index_text = input("\nEscolha: ")
+
+            if not index_text.isdigit():
+                print("\nEscolha inválida.")
+                continue
+
+            index = int(index_text) - 1
+
+            if not (0 <= index < len(profiles)):
+                print("\nPerfil inválido.")
+                continue
+
+            confirm = input(
+                f"\nDigite SIM para remover {profiles[index].name}: "
+            )
+
+            if confirm.upper() == "SIM":
+                profile_service.delete_profile(
+                    profiles[index].id
+                )
+                print("\nPerfil removido.")
+
+        elif choice == "S":
+            return
+
+        else:
+            print("\nOpção inválida.")
 
     server = selected_profile.server
     database = selected_profile.database
     username = selected_profile.username
+
     password = input(f"Senha para {username}: ")
 
     config = DatabaseConfig(
