@@ -26,11 +26,11 @@ def main():
             for i, profile in enumerate(profiles, start=1):
                 print(f"{i} - {profile.name}")
         else:
-            print("\nNenhum perfil salvo.")
+            print("\nNenhum perfil de conexão salvo.")
 
-        print("\nN - Novo perfil")
-        print("E - Editar perfil")
-        print("R - Remover perfil")
+        print("\nN - Novo perfil de conexão")
+        print("E - Editar perfil de conexão")
+        print("R - Remover perfil de conexão")
         print("S - Sair")
 
         choice = input("\nEscolha: ").strip().upper()
@@ -42,11 +42,11 @@ def main():
             if 0 <= index < len(profiles):
                 selected_profile = profiles[index]
             else:
-                print("\nPerfil inválido.")
+                print("\nPerfil de conexão inválido.")
 
         elif choice == "N":
 
-            name = input("Nome do perfil: ")
+            name = input("Nome do perfil de conexão: ")
             server = input("Servidor: ")
             database = input("Banco: ")
             username = input("Usuário: ")
@@ -69,12 +69,12 @@ def main():
                 tables
             )
 
-            print("\nPerfil criado com sucesso!")
+            print("\nPerfil de conexão criado com sucesso!")
 
         elif choice == "E":
 
             if not profiles:
-                print("\nNenhum perfil disponível.")
+                print("\nNenhum Perfil de conexão disponível.")
                 continue
 
             for i, profile in enumerate(profiles, start=1):
@@ -89,7 +89,7 @@ def main():
             index = int(index_text) - 1
 
             if not (0 <= index < len(profiles)):
-                print("\nPerfil inválido.")
+                print("\nPerfil de conexão inválido.")
                 continue
 
             profile = profiles[index]
@@ -122,12 +122,12 @@ def main():
                 tables
             )
 
-            print("\nPerfil atualizado.")
+            print("\nPerfil de conexão atualizado.")
 
         elif choice == "R":
 
             if not profiles:
-                print("\nNenhum perfil disponível.")
+                print("\nNenhum perfil de conexão disponível.")
                 continue
 
             for i, profile in enumerate(profiles, start=1):
@@ -142,7 +142,7 @@ def main():
             index = int(index_text) - 1
 
             if not (0 <= index < len(profiles)):
-                print("\nPerfil inválido.")
+                print("\nPerfil de conexão inválido.")
                 continue
 
             confirm = input(
@@ -153,7 +153,7 @@ def main():
                 profile_service.delete_profile(
                     profiles[index].id
                 )
-                print("\nPerfil removido.")
+                print("\nPerfil de conexão removido.")
 
         elif choice == "S":
             return
@@ -199,8 +199,8 @@ def main():
             if option == "1":
 
                 if not selected_profile.tables:
-                    print("\nEste perfil não possui tabelas configuradas.")
-                    print("Edite o perfil e adicione pelo menos uma tabela.")
+                    print("\nEste perfil de conexão não possui tabelas configuradas.")
+                    print("Edite o perfil de conexão e adicione pelo menos uma tabela.")
                     continue
                 
                 tables_text = ",".join(selected_profile.tables)
