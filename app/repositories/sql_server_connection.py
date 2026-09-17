@@ -11,23 +11,11 @@ class SQLServerConnection:
         if self._connection is not None:
             return self._connection
 
-        username = (
-            self._config.sa_username
-            if self._config.use_sa and self._config.sa_username
-            else self._config.username
-        )
-
-        password = (
-            self._config.sa_password
-            if self._config.use_sa and self._config.sa_password
-            else self._config.password
-        )
-
         connection_string = (
             f"Server={self._config.server};"
             f"Database={self._config.database};"
-            f"UID={username};"
-            f"PWD={password};"
+            f"UID={self._config.username};"
+            f"PWD={self._config.password};"
             "Encrypt=yes;"
             "TrustServerCertificate=yes;"
         )
@@ -41,14 +29,38 @@ class SQLServerConnection:
             self._connection.close()
             self._connection = None
 
-    def test_connection(self):
-        try:
-            conn = self.connect()
-            cursor = conn.cursor()
-            cursor.execute("SELECT @@VERSION")
-            version = cursor.fetchone()
+    def test_connection(self) -> str:
+        conn = self.connect()
+        
+        cursor = conn.cursor()
+        cursor.execute("SELECT @@VERSION")
+                    
+        version = cursor.fetchone()
+        
+        return version[0]
 
-            return version[0]
+    def execute(self, query: str, params: tuple = ()) -> None:
+        conn = self.connect()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(query, params)
+            conn.commit()
+        except: 
+            conn.rollback()
+            raise
+
+    def execute_dbcc(self, query: str, params: tuple = ()):
+        conn = self.connect()
+
+        previous_autocommit = conn.autocommit
+
+        try:
+            conn.autocommit = True
+
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            cursor.close()
 
         finally:
-            self.disconnect()
+            conn.autocommit = previous_autocommit
