@@ -121,5 +121,36 @@ class LogRepository:
         """
 
         self._connection.execute_dbcc(query)
+        
+    def validate_tables(self, table_names: list[str]) -> tuple[list[str], list[str]]:
+        conn = self._connection.connect()
+        cursor = conn.cursor()
+
+        placeholders = ",".join("?" for _ in table_names)
+
+        query = f"""
+        SELECT name
+        FROM sys.tables
+        WHERE LOWER(name) IN ({placeholders})
+        """
+
+        cursor.execute(
+            query,
+            tuple(name.lower() for name in table_names)
+        )
+
+        existing = {row[0].lower() for row in cursor.fetchall()}
+        cursor.close()
+
+        valid = []
+        invalid = []
+
+        for table in table_names:
+            if table.lower() in existing:
+                valid.append(table)
+            else:
+                invalid.append(table)
+
+        return valid, invalid
 
     

@@ -1,10 +1,15 @@
+import os
 from app.services.connection_service import ConnectionService
 from app.config.database_config import DatabaseConfig
 from app.services.logwatcher_service import LogWatcherService
 from app.services.connection_profile_service import ConnectionProfileService
 from tabulate import tabulate
 
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 def main():
+    clear_screen()
     print("=" * 50)
     print("LogWatcher - Teste via Terminal")
     print("=" * 50)
@@ -13,20 +18,18 @@ def main():
 
     selected_profile = None
 
-    selected_profile = None
-
     while selected_profile is None:
 
         profiles = profile_service.load_profiles()
 
-        print("\nPerfis Salvos")
-        print("-" * 30)
+        print("\nPerfis de conexões Salvos")
+        print("=" * 50)
 
         if profiles:
             for i, profile in enumerate(profiles, start=1):
                 print(f"{i} - {profile.name}")
         else:
-            print("\nNenhum perfil de conexão salvo.")
+            print("\nCrie seu primeiro perfil de conexão.")
 
         print("\nN - Novo perfil de conexão")
         print("E - Editar perfil de conexão")
@@ -42,17 +45,20 @@ def main():
             if 0 <= index < len(profiles):
                 selected_profile = profiles[index]
             else:
-                print("\nPerfil de conexão inválido.")
+                print("=" * 50)
+                print("ERRO: Perfil de conexão inválido.")
+                print("=" * 50)
 
         elif choice == "N":
 
             name = input("Nome do perfil de conexão: ")
-            server = input("Servidor: ")
-            database = input("Banco: ")
-            username = input("Usuário: ")
+            server = input("IP do Servidor: ")
+            database = input("Nome do Banco: ")
+            username = input("Usuário do Banco: ")
+            password = input("Senha do Banco: ")
 
             tables_text = input(
-                "\nTabelas (separadas por vírgula): "
+                "\nDigite as tabelas de logs/auditoria (separadas por vírgula): "
             )
 
             tables = [
@@ -60,21 +66,64 @@ def main():
                 for table in tables_text.split(",")
                 if table.strip()
             ]
+            
+            connection_service = ConnectionService()
+
+            config = DatabaseConfig(
+                server=server,
+                database=database,
+                username=username,
+                password=password
+            )
+
+            try:
+                connection_service.connect(config)
+
+                service = LogWatcherService(connection_service.repository)
+
+                valid, invalid = service.validate_tables(tables_text)
+
+            except Exception as e:
+                clear_screen()
+                print("=" * 50)
+                print(f"Erro ao conectar ao banco: {e}")
+                print("=" * 50)
+                continue
+
+            finally:
+                connection_service.disconnect()
 
             profile_service.create_profile(
                 name,
                 server,
                 database,
                 username,
-                tables
+                valid
             )
 
-            print("\nPerfil de conexão criado com sucesso!")
+            clear_screen()
+            print("=" * 50)
+            print("Perfil de conexão criado com sucesso!")
+            print("=" * 50)
+
+            if valid:
+                print("\nTabelas adicionadas:")
+                for table in valid:
+                    print(f"- {table}")
+
+            if invalid:
+                print("\nAs seguintes tabelas não foram encontradas:")
+                for table in invalid:
+                    print(f"- {table}")
+
 
         elif choice == "E":
 
             if not profiles:
-                print("\nNenhum Perfil de conexão disponível.")
+                clear_screen()
+                print("!" * 50)
+                print("ERRO: Nenhum perfil de conexão disponível.")
+                print("!" * 50)
                 continue
 
             for i, profile in enumerate(profiles, start=1):
@@ -83,21 +132,27 @@ def main():
             index_text = input("\nEscolha: ")
 
             if not index_text.isdigit():
-                print("\nEscolha inválida.")
+                clear_screen()
+                print("=" * 50)
+                print("ERRO: Escolha inválida.")
+                print("=" * 50)
                 continue
 
             index = int(index_text) - 1
 
             if not (0 <= index < len(profiles)):
-                print("\nPerfil de conexão inválido.")
+                clear_screen()
+                print("=" * 50)
+                print("ERRO: Perfil de conexão inválido.")
+                print("=" * 50)
                 continue
 
             profile = profiles[index]
 
             name = input(f"Nome ({profile.name}): ") or profile.name
-            server = input(f"Servidor ({profile.server}): ") or profile.server
-            database = input(f"Banco ({profile.database}): ") or profile.database
-            username = input(f"Usuário ({profile.username}): ") or profile.username
+            server = input(f"IP do Servidor ({profile.server}): ") or profile.server
+            database = input(f"Nome do Banco ({profile.database}): ") or profile.database
+            username = input(f"Usuário do Banco ({profile.username}): ") or profile.username
 
             print("\nTabelas atuais:")
             for table in profile.tables:
@@ -122,12 +177,18 @@ def main():
                 tables
             )
 
-            print("\nPerfil de conexão atualizado.")
+            clear_screen()
+            print("=" * 50)
+            print("SUCESSO: Perfil de conexão atualizado.")
+            print("=" * 50)
 
         elif choice == "R":
 
             if not profiles:
-                print("\nNenhum perfil de conexão disponível.")
+                clear_screen()
+                print("=" * 50)
+                print("ERRO: Nenhum perfil de conexão disponível.")
+                print("=" * 50)
                 continue
 
             for i, profile in enumerate(profiles, start=1):
@@ -136,30 +197,41 @@ def main():
             index_text = input("\nEscolha: ")
 
             if not index_text.isdigit():
-                print("\nEscolha inválida.")
+                clear_screen()
+                print("=" * 50)
+                print("ERRO: Escolha inválida.")
+                print("=" * 50)
                 continue
 
             index = int(index_text) - 1
 
             if not (0 <= index < len(profiles)):
-                print("\nPerfil de conexão inválido.")
+                clear_screen()
+                print("=" * 50)
+                print("ERRO: Perfil de conexão inválido ou inexistente.")
+                print("=" * 50)
                 continue
 
             confirm = input(
                 f"\nDigite SIM para remover {profiles[index].name}: "
             )
 
+            clear_screen()
             if confirm.upper() == "SIM":
                 profile_service.delete_profile(
                     profiles[index].id
                 )
-                print("\nPerfil de conexão removido.")
+                print("=" * 50)
+                print("SUCESSO: Perfil de conexão removido.")
+                print("=" * 50)
 
         elif choice == "S":
             return
 
         else:
-            print("\nOpção inválida.")
+            print("=" * 50)
+            print("ERRO: Opção inválida.")
+            print("=" * 50)
 
     server = selected_profile.server
     database = selected_profile.database
@@ -179,28 +251,35 @@ def main():
     summary = None
 
     try:
+        clear_screen()
         print("\nConectando...")
 
         version = connection_service.connect(config)
+        clear_screen()
+        print("=" * 50)
         print("Conectado com sucesso!")
         print(f"SQL Server: {version.splitlines()[0]}")
+        print("=" * 50)
 
         service = LogWatcherService(connection_service.repository)
 
         while True:
-            print("\n=== MENU ===")
+            print("\n===== MENU =====")
             print("1 - Consultar Dashboard")
             print("2 - Limpar Tabela")
             print("3 - Shrink do arquivo de Log")
             print("0 - Sair")
 
             option = input("\nEscolha: ")
+            clear_screen()
 
             if option == "1":
 
                 if not selected_profile.tables:
-                    print("\nEste perfil de conexão não possui tabelas configuradas.")
+                    print("=" * 50)
+                    print("Este perfil de conexão não possui tabelas configuradas.")
                     print("Edite o perfil de conexão e adicione pelo menos uma tabela.")
+                    print("=" * 50)
                     continue
                 
                 tables_text = ",".join(selected_profile.tables)
@@ -262,7 +341,9 @@ def main():
             elif option == "2":
 
                 if summary is None:
-                    print("\nFaça uma consulta primeiro.")
+                    print("=" * 50)
+                    print("ERRO: Perfil não possui tabelas, edita o perfil de conexão.")
+                    print("=" * 50)
                     continue
 
                 print("\nTabelas Monitoradas")
@@ -273,13 +354,19 @@ def main():
                 choice_text = input("\nEscolha: ")
 
                 if not choice_text.isdigit():
-                    print("\nEscolha inválida.")
+                    clear_screen()
+                    print("=" * 50)
+                    print("ERRO: Escolha inválida.")
+                    print("=" * 50)
                     continue
 
                 choice = int(choice_text) - 1
                 
                 if choice < 0 or choice >= len(summary.tables):
-                    print("\nTabela inválida.")
+                    clear_screen()
+                    print("=" * 50)
+                    print("ERRO: Opção inválida.")
+                    print("=" * 50)
                     continue
 
                 table = summary.tables[choice]
@@ -291,15 +378,21 @@ def main():
                 mode = input("\nEscolha: ")
                 
                 if mode not in ("1", "2"):
-                    print("\nModo inválido.")
+                    clear_screen()
+                    print("=" * 50)
+                    print("ERRO: Modo inválido.")
+                    print("=" * 50)
                     continue
                 
                 action = "TRUNCATE" if mode == "1" else "DELETE"
 
                 confirm = input(f"\nDigite SIM para executar em {table.schema.upper()}.{table.name.upper()}: ")
 
+                clear_screen()
                 if confirm.upper() != "SIM":
-                    print("\nOperação cancelada.")
+                    print("=" * 50)
+                    print("ERRO: Operação cancelada.")
+                    print("=" * 50)
                     continue
 
                 try:
@@ -308,11 +401,15 @@ def main():
                     else:
                         service.delete_monitored_table(summary, choice)
                         
+                    print("=" * 50)
                     print(f"\n{action} executado com sucesso!")
+                    print("=" * 50)
                     summary = service.analyze_database(",".join(table.name for table in summary.tables))
                 except Exception as e:
-                    print(f"\nNão foi possível executar o {action}.")
+                    print("=" * 50)
+                    print(f"Não foi possível executar o {action}.")
                     print(f"Motivo: {e}")
+                    print("=" * 50)
 
             elif option == "3":
 
@@ -340,13 +437,19 @@ def main():
                 choice_text = input("\nEscolha: ")
                 
                 if not choice_text.isdigit():
-                    print("\nEscolha inválida.")
+                    clear_screen()
+                    print("=" * 50)
+                    print("ERRO: Escolha inválida.")
+                    print("=" * 50)
                     continue
                 
                 choice = int(choice_text) - 1
                 
                 if choice < 0 or choice >= len(logs):
-                    print("\nArquivo inválido.")
+                    clear_screen()
+                    print("=" * 50)
+                    print("ERRO: Arquivo inválido.")
+                    print("=" * 50)
                     continue
 
                 print("\nAviso:")
@@ -357,8 +460,11 @@ def main():
 
                 confirm = input("\nDigite SIM para confirmar: ")
 
+                clear_screen()
                 if confirm.upper() != "SIM":
-                    print("\nOperação cancelada.")
+                    print("=" * 50)
+                    print("Operação cancelada.")
+                    print("=" * 50)
                     continue
 
                 before = logs[choice].size_mb
@@ -379,11 +485,14 @@ def main():
                 break
 
             else:
-                print("Opção inválida.")
+                print("=" * 50)
+                print("ERRO: Opção inválida.")
+                print("=" * 50)
 
 
     except Exception as e:
         print(f"\nErro: {e}")
+        print("=" * 50)
 
     finally:
         connection_service.disconnect()

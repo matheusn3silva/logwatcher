@@ -31,6 +31,10 @@ class LogWatcherService:
             total_log_size_mb=total_log_size,
             total_log_used_mb=total_log_used
         )
+        
+    def validate_tables(self, tables_text: str):
+        tables = TableParser.parse(tables_text)
+        return self._repository.validate_tables(tables)
 
     def truncate_monitored_table(self, summary, index: int):
         if index < 0 or index >= len(summary.tables):

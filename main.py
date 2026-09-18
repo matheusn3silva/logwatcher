@@ -1,12 +1,13 @@
 import customtkinter as ctk
 
-ctk.set_appearance_mode("System")
+from app.interfaces.gui.login_view import LoginView
 
-app = ctk.CTk()
-app.title("LogWatcher")
-app.geometry("500x300")
-
-label = ctk.CTkLabel(app, text="Ambiente configurado!")
-label.pack(pady=50)
-
-app.mainloop()
+def main():
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+    
+    app = LoginView()
+    app.mainloop()
+    
+if __name__ == "__main__":
+    main()
