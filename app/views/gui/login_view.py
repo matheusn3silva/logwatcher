@@ -1,4 +1,5 @@
 import customtkinter as ctk
+from app.interfaces.gui.widgets.profile_list_widget import ProfileListWidget
 
 class LoginView(ctk.CTk):
     def __init__(self):
@@ -35,6 +36,18 @@ class LoginView(ctk.CTk):
             )
         ).pack(pady=(30, 20))
         
+        self.profile_list = ProfileListWidget(
+            self.sidebar,
+            on_select=self.on_profile_selected
+        )
+        
+        self.profile_list.pack(
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10
+        )
+        
         # CONTENT
         self.content = ctk.CTkFrame(
             self,
@@ -55,5 +68,8 @@ class LoginView(ctk.CTk):
                 weight="bold"
             )
         ).pack(pady=40)
+        
+    def on_profile_selected(self, profile):
+        print(f"Perfil selecionado: {profile.name}")
         
         

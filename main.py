@@ -1,6 +1,6 @@
 import customtkinter as ctk
 
-from app.views.login_view import LoginView
+from app.interfaces.gui.login_view import LoginView
 
 def main():
     ctk.set_appearance_mode("dark")
