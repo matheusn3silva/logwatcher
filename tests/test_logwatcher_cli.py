@@ -19,7 +19,7 @@ def main():
 
         profiles = profile_service.load_profiles()
 
-        print("\nPerfis Salvos")
+        print("\nPerfis de conexões Salvos")
         print("-" * 30)
 
         if profiles:
@@ -52,7 +52,7 @@ def main():
             username = input("Usuário: ")
 
             tables_text = input(
-                "\nTabelas (separadas por vírgula): "
+                "\n Digite as tabelas de logs/auditoria (separadas por vírgula): "
             )
 
             tables = [
@@ -95,9 +95,9 @@ def main():
             profile = profiles[index]
 
             name = input(f"Nome ({profile.name}): ") or profile.name
-            server = input(f"Servidor ({profile.server}): ") or profile.server
-            database = input(f"Banco ({profile.database}): ") or profile.database
-            username = input(f"Usuário ({profile.username}): ") or profile.username
+            server = input(f"IP do Servidor ({profile.server}): ") or profile.server
+            database = input(f"Nome do Banco ({profile.database}): ") or profile.database
+            username = input(f"Usuário do Banco ({profile.username}): ") or profile.username
 
             print("\nTabelas atuais:")
             for table in profile.tables:
@@ -188,7 +188,7 @@ def main():
         service = LogWatcherService(connection_service.repository)
 
         while True:
-            print("\n=== MENU ===")
+            print("\n===== MENU =====")
             print("1 - Consultar Dashboard")
             print("2 - Limpar Tabela")
             print("3 - Shrink do arquivo de Log")
