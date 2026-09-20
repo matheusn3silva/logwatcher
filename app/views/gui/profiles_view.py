@@ -1,62 +1,40 @@
 import customtkinter as ctk
 
 from app.services.connection_profile_service import ConnectionProfileService
-
 from app.config.database_config import DatabaseConfig
 from app.services.connection_service import ConnectionService
 from app.services.logwatcher_service import LogWatcherService
+from app.views.gui.theme import Theme
 
 class ProfilesView(ctk.CTkFrame):
-    def __init__(self, master, connection_manager, on_profile_selected):
-        super().__init__(master)
+    def __init__(self, master, connection_manager, on_profile_selected,
+                 on_profile_disconnected=None):
+        super().__init__(master, fg_color="transparent")
 
         self.profile_service = ConnectionProfileService()
         self.connection_manager = connection_manager
         self.on_profile_selected = on_profile_selected
+        self.on_profile_disconnected = on_profile_disconnected
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self._create_header()
         self._create_profile_area()
 
         self.load_profiles()
-
-    # ==========================================================
-    # HEADER
-    # ==========================================================
-
-    def _create_header(self):
-        self.header = ctk.CTkFrame(self, fg_color="transparent")
-
-        self.header.grid(row=0, column=0, sticky="ew", padx=25, pady=(25, 10))
-
-        self.header.grid_columnconfigure(0, weight=1)
-
-        self.title_label = ctk.CTkLabel(
-            self.header,
-            text="Perfis de Conexão",
-            font=ctk.CTkFont(
-                size=26,
-                weight="bold"
-            )
-        )
-        self.title_label.grid(row=0, column=0, sticky="w")
-
-        self.new_button = ctk.CTkButton(
-            self.header,
-            text="Novo Perfil",
-            command=self.open_create_dialog
-        )
-        self.new_button.grid(row=0, column=1, padx=(10, 0))
 
     # ==========================================================
     # ÁREA DOS PERFIS
     # ==========================================================
 
     def _create_profile_area(self):
-        self.profiles_frame = ctk.CTkScrollableFrame(self)
-        self.profiles_frame.grid(row=1, column=0, sticky="nsew", padx=25, pady=(10, 25))
+        self.profiles_frame = ctk.CTkScrollableFrame(
+            self,
+            fg_color="transparent",
+            scrollbar_button_color=Theme.BORDER,
+            scrollbar_button_hover_color=Theme.ACCENT,
+        )
+        self.profiles_frame.grid(row=0, column=0, sticky="nsew")
         self.profiles_frame.grid_columnconfigure(0, weight=1)
 
     # ==========================================================
@@ -71,11 +49,12 @@ class ProfilesView(ctk.CTkFrame):
         if not profiles:
             empty_label = ctk.CTkLabel(
                 self.profiles_frame,
-                text="Nenhum perfil de conexão cadastrado",
-                font=ctk.CTkFont(size=15)
+                text="Nenhum perfil cadastrado.\nClique em \"+ Novo Perfil\".",
+                font=ctk.CTkFont(size=13),
+                text_color=Theme.TEXT_MUTED,
+                justify="center"
             )
-            empty_label.grid(row=0, column=0, pady=40)
-
+            empty_label.grid(row=0, column=0, pady=30, padx=5)
             return
 
         for index, profile in enumerate(profiles):
@@ -86,92 +65,95 @@ class ProfilesView(ctk.CTkFrame):
     # ==========================================================
 
     def _create_profile_card(self, profile, row):
-        card = ctk.CTkFrame(
-            self.profiles_frame
-        )
-        card.grid(row=row, column=0, sticky="ew", padx=5, pady=6)
-        card.grid_columnconfigure(0, weight=1)
-        
         connected = self.connection_manager.is_connected(profile.id)
 
-        name_text = profile.name
+        card = ctk.CTkFrame(
+            self.profiles_frame,
+            fg_color=Theme.CARD,
+            corner_radius=10,
+            border_width=1,
+            border_color=Theme.ACCENT if connected else Theme.BORDER,
+        )
+        card.grid(row=row, column=0, sticky="ew", pady=(0, 10))
+        card.grid_columnconfigure(0, weight=1)
 
-        if connected:
-            name_text += "  ● Conectado"
+        # Nome + status (empilhados, não mais lado a lado com os botões)
+        header_row = ctk.CTkFrame(card, fg_color="transparent")
+        header_row.grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 2))
+        header_row.grid_columnconfigure(0, weight=1)
 
         name_label = ctk.CTkLabel(
-            card,
-            text=name_text,
-            font=ctk.CTkFont(
-                size=18,
-                weight="bold"
-            )
+            header_row, text=profile.name,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w", justify="left", wraplength=170,
         )
-        name_label.grid(row=0, column=0, sticky="w", padx=20, pady=(15, 3))
+        name_label.grid(row=0, column=0, sticky="w")
+
+        status_label = ctk.CTkLabel(
+            header_row,
+            text="● Conectado" if connected else "○ Offline",
+            font=ctk.CTkFont(size=11),
+            text_color=Theme.SUCCESS if connected else Theme.TEXT_MUTED,
+        )
+        status_label.grid(row=1, column=0, sticky="w", pady=(2, 0))
 
         database_label = ctk.CTkLabel(
             card,
             text=(
-                f"Servidor (IP): {profile.server}\n"
-                f"Nome do banco: {profile.database}\n"
-                f"Usuário do banco: {profile.username}"
+                f"Servidor: {profile.server}\n"
+                f"Banco: {profile.database}\n"
+                f"Usuário: {profile.username}"
             ),
-            justify="left"
+            font=ctk.CTkFont(size=11),
+            text_color=Theme.TEXT_MUTED,
+            justify="left", anchor="w", wraplength=200,
         )
-        database_label.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 15))
+        database_label.grid(row=1, column=0, sticky="w", padx=14, pady=(0, 10))
 
-        buttons_frame = ctk.CTkFrame(
-            card,
-            fg_color="transparent"
-        )
-        buttons_frame.grid(row=0, column=1, rowspan=2, padx=20)
+        # Botões: grade de 2 colunas, nunca estoura a largura do card
+        buttons_frame = ctk.CTkFrame(card, fg_color="transparent")
+        buttons_frame.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 14))
+        buttons_frame.grid_columnconfigure((0, 1), weight=1)
+
+        small_font = ctk.CTkFont(size=11)
 
         if connected:
             select_button = ctk.CTkButton(
-                buttons_frame,
-                text="Selecionar",
-                width=90,
-                command=lambda p=profile:
-                    self.select_profile(p)
+                buttons_frame, text="Selecionar", height=26, font=small_font,
+                fg_color=Theme.ACCENT, hover_color=Theme.ACCENT_HOVER,
+                command=lambda p=profile: self.select_profile(p)
             )
-            select_button.pack(side="left", padx=5)
+            select_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
 
             disconnect_button = ctk.CTkButton(
-                buttons_frame,
-                text="Desconectar",
-                width=100,
-                command=lambda p=profile:
-                    self.disconnect_profile(p)
+                buttons_frame, text="Desconectar", height=26, font=small_font,
+                fg_color=Theme.DANGER, hover_color=Theme.DANGER_HOVER,
+                command=lambda p=profile: self.disconnect_profile(p)
             )
-            disconnect_button.pack(side="left", padx=5)
-
+            disconnect_button.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+            edit_row = 2
         else:
             connect_button = ctk.CTkButton(
-                buttons_frame,
-                text="Conectar",
-                width=90,
-                command=lambda p=profile:
-                    self.connect_profile(p)
+                buttons_frame, text="Conectar", height=26, font=small_font,
+                fg_color=Theme.ACCENT, hover_color=Theme.ACCENT_HOVER,
+                command=lambda p=profile: self.connect_profile(p)
             )
-            connect_button.pack(side="left", padx=5)
+            connect_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+            edit_row = 1
 
         edit_button = ctk.CTkButton(
-            buttons_frame,
-            text="Editar",
-            width=90,
-            command=lambda p=profile:
-                self.open_edit_dialog(p)
+            buttons_frame, text="Editar", height=26, font=small_font,
+            fg_color=Theme.SURFACE, hover_color=Theme.BORDER,
+            command=lambda p=profile: self.open_edit_dialog(p)
         )
-        edit_button.pack(side="left", padx=5)
+        edit_button.grid(row=edit_row, column=0, sticky="ew", padx=(0, 3))
 
         delete_button = ctk.CTkButton(
-            buttons_frame,
-            text="Excluir",
-            width=90,
-            command=lambda p=profile:
-                self.confirm_delete(p)
+            buttons_frame, text="Excluir", height=26, font=small_font,
+            fg_color=Theme.SURFACE, hover_color=Theme.DANGER_HOVER,
+            command=lambda p=profile: self.confirm_delete(p)
         )
-        delete_button.pack(side="left", padx=5)
+        delete_button.grid(row=edit_row, column=1, sticky="ew", padx=(3, 0))
 
     # ==========================================================
     # NOVO PERFIL
@@ -361,10 +343,10 @@ class ProfilesView(ctk.CTkFrame):
 
     def show_info(self, message):
         dialog = ctk.CTkToplevel(self)
-
         dialog.title("Informação")
         dialog.geometry("500x300")
         dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
 
         dialog.transient(self)
         dialog.grab_set()
@@ -389,10 +371,10 @@ class ProfilesView(ctk.CTkFrame):
     # ==========================================================
     def confirm_delete(self, profile):
         dialog = ctk.CTkToplevel(self)
-
         dialog.title("Excluir perfil")
         dialog.geometry("400x190")
         dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
 
         dialog.transient(self)
         dialog.grab_set()
@@ -467,6 +449,9 @@ class ProfilesView(ctk.CTkFrame):
             self.connection_manager.disconnect(profile.id)
             self.load_profiles()
 
+            if self.on_profile_disconnected:
+                self.on_profile_disconnected(profile)
+
         except Exception as error:
             self.show_error(
                 f"Não foi possível desconectar do perfil.\n\n"
@@ -485,10 +470,10 @@ class ProfilesView(ctk.CTkFrame):
     # ==========================================================
     def show_error(self, message):
         dialog = ctk.CTkToplevel(self)
-
         dialog.title("Erro")
         dialog.geometry("450x220")
         dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
 
         dialog.transient(self)
         dialog.grab_set()
@@ -745,10 +730,10 @@ class ProfileDialog(ctk.CTkToplevel):
 
     def show_error(self, message):
         dialog = ctk.CTkToplevel(self)
-
         dialog.title("Validação")
         dialog.geometry("400x180")
         dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
 
         dialog.transient(self)
         dialog.grab_set()
