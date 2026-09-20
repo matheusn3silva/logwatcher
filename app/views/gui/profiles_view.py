@@ -50,7 +50,7 @@ class ProfilesView(ctk.CTkFrame):
             empty_label = ctk.CTkLabel(
                 self.profiles_frame,
                 text="Nenhum perfil cadastrado.\nClique em \"+ Novo Perfil\".",
-                font=ctk.CTkFont(size=13),
+                font=Theme.font(size=13),
                 text_color=Theme.TEXT_MUTED,
                 justify="center"
             )
@@ -84,7 +84,7 @@ class ProfilesView(ctk.CTkFrame):
 
         name_label = ctk.CTkLabel(
             header_row, text=profile.name,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=Theme.font(size=14, weight="bold"),
             anchor="w", justify="left", wraplength=170,
         )
         name_label.grid(row=0, column=0, sticky="w")
@@ -92,7 +92,7 @@ class ProfilesView(ctk.CTkFrame):
         status_label = ctk.CTkLabel(
             header_row,
             text="● Conectado" if connected else "○ Offline",
-            font=ctk.CTkFont(size=11),
+            font=Theme.font(size=11),
             text_color=Theme.SUCCESS if connected else Theme.TEXT_MUTED,
         )
         status_label.grid(row=1, column=0, sticky="w", pady=(2, 0))
@@ -104,7 +104,7 @@ class ProfilesView(ctk.CTkFrame):
                 f"Banco: {profile.database}\n"
                 f"Usuário: {profile.username}"
             ),
-            font=ctk.CTkFont(size=11),
+            font=Theme.font(size=11),
             text_color=Theme.TEXT_MUTED,
             justify="left", anchor="w", wraplength=200,
         )
@@ -115,7 +115,7 @@ class ProfilesView(ctk.CTkFrame):
         buttons_frame.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 14))
         buttons_frame.grid_columnconfigure((0, 1), weight=1)
 
-        small_font = ctk.CTkFont(size=11)
+        small_font = Theme.font(size=11)
 
         if connected:
             select_button = ctk.CTkButton(
@@ -143,7 +143,7 @@ class ProfilesView(ctk.CTkFrame):
 
         edit_button = ctk.CTkButton(
             buttons_frame, text="Editar", height=26, font=small_font,
-            fg_color=Theme.SURFACE, hover_color=Theme.BORDER,
+            fg_color=Theme.SUCCESS, hover_color=Theme.SUCCESS_HOVER,
             command=lambda p=profile: self.open_edit_dialog(p)
         )
         edit_button.grid(row=edit_row, column=0, sticky="ew", padx=(0, 3))
@@ -385,7 +385,7 @@ class ProfilesView(ctk.CTkFrame):
                 f"Deseja realmente excluir o perfil?\n\n"
                 f"{profile.name}"
             ),
-            font=ctk.CTkFont(size=15)
+            font=Theme.font(size=15)
         )
         label.pack(padx=20, pady=(25, 20))
 
@@ -520,7 +520,7 @@ class ProfileDialog(ctk.CTkToplevel):
         self.title_label = ctk.CTkLabel(
             self,
             text=self.title(),
-            font=ctk.CTkFont(
+            font=Theme.font(
                 size=22,
                 weight="bold"
             )
@@ -623,7 +623,7 @@ class ProfileDialog(ctk.CTkToplevel):
         self.info_label = ctk.CTkLabel(
             self,
             text="Informe as tabelas separadas por vírgula.",
-            font=ctk.CTkFont(size=12)
+            font=Theme.font(size=12)
         )
 
         self.info_label.grid(
@@ -771,7 +771,7 @@ class PasswordDialog(ctk.CTkToplevel):
         title = ctk.CTkLabel(
             self,
             text="Senha do banco",
-            font=ctk.CTkFont(
+            font=Theme.font(
                 size=20,
                 weight="bold"
             )

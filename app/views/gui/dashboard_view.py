@@ -31,7 +31,7 @@ class DashboardView(ctk.CTkFrame):
         title = ctk.CTkLabel(
             header,
             text=f"Dashboard — {self.profile.name}",
-            font=ctk.CTkFont(size=20, weight="bold"),
+            font=Theme.font(size=20, weight="bold"),
             text_color=Theme.TEXT,
         )
         title.grid(row=0, column=0, sticky="w")
@@ -147,7 +147,7 @@ class DashboardView(ctk.CTkFrame):
         label = ctk.CTkLabel(
             self.scroll,
             text=text,
-            font=ctk.CTkFont(size=13),
+            font=Theme.font(size=13),
             text_color=Theme.DANGER if is_error else Theme.TEXT_MUTED,
             justify="left",
         )
@@ -192,7 +192,7 @@ class DashboardView(ctk.CTkFrame):
             value_label = ctk.CTkLabel(
                 card,
                 text=value_text,
-                font=ctk.CTkFont(size=19, weight="bold"),
+                font=Theme.font(size=19, weight="bold"),
                 text_color=Theme.TEXT,
                 anchor="w",
             )
@@ -201,7 +201,7 @@ class DashboardView(ctk.CTkFrame):
             title_label = ctk.CTkLabel(
                 card,
                 text=label_text,
-                font=ctk.CTkFont(size=11),
+                font=Theme.font(size=11),
                 text_color=Theme.TEXT_MUTED,
                 anchor="w",
             )
@@ -221,7 +221,7 @@ class DashboardView(ctk.CTkFrame):
         title_label = ctk.CTkLabel(
             wrapper,
             text=title,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=Theme.font(size=14, weight="bold"),
             text_color=Theme.TEXT,
         )
         title_label.grid(row=0, column=0, sticky="w", pady=(0, 8))
@@ -242,7 +242,7 @@ class DashboardView(ctk.CTkFrame):
             header_label = ctk.CTkLabel(
                 table,
                 text=header_text,
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=Theme.font(size=11, weight="bold"),
                 text_color=Theme.TEXT_MUTED,
                 anchor="e" if col in numeric_cols else "w",
             )
@@ -258,7 +258,7 @@ class DashboardView(ctk.CTkFrame):
             empty_label = ctk.CTkLabel(
                 table,
                 text=empty_text,
-                font=ctk.CTkFont(size=12),
+                font=Theme.font(size=12),
                 text_color=Theme.TEXT_MUTED,
             )
             empty_label.grid(
@@ -274,7 +274,7 @@ class DashboardView(ctk.CTkFrame):
                 cell = ctk.CTkLabel(
                     table,
                     text=value,
-                    font=ctk.CTkFont(size=12),
+                    font=Theme.font(size=12),
                     text_color=Theme.TEXT,
                     anchor="e" if col in numeric_cols else "w",
                 )

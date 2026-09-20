@@ -2,6 +2,7 @@ import customtkinter as ctk
 
 from app.views.gui.profiles_view import ProfilesView
 from app.views.gui.dashboard_view import DashboardView
+from app.views.gui.maintenance_view import MaintenanceView
 from app.views.gui.theme import Theme
 from app.views.gui import theme as theme_module
 from app.services.connection_manager import ConnectionManager
@@ -73,7 +74,7 @@ class MainWindow(ctk.CTk):
         self.logo_label = ctk.CTkLabel(
             self.sidebar,
             text="LogWatcher",
-            font=ctk.CTkFont(
+            font=Theme.font(
                 size=24,
                 weight="bold"
             )
@@ -90,7 +91,7 @@ class MainWindow(ctk.CTk):
         self.profiles_title = ctk.CTkLabel(
             self.sidebar,
             text="PERFIS DE CONEXÃO",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=Theme.font(size=12, weight="bold"),
             text_color=Theme.TEXT_MUTED,
         )
 
@@ -244,21 +245,21 @@ class MainWindow(ctk.CTk):
         self.empty_state.grid_rowconfigure(2, weight=1)
 
         icon_label = ctk.CTkLabel(
-            self.empty_state, text="⛁", font=ctk.CTkFont(size=42),
+            self.empty_state, text="⛁", font=Theme.font(size=42),
             text_color=Theme.TEXT_MUTED,
         )
         icon_label.grid(row=1, column=0)
 
         label = ctk.CTkLabel(
             self.empty_state, text="Nenhum perfil conectado",
-            font=ctk.CTkFont(size=20, weight="bold"), text_color=Theme.TEXT,
+            font=Theme.font(size=20, weight="bold"), text_color=Theme.TEXT,
         )
         label.grid(row=2, column=0, sticky="n", pady=(10, 4))
 
         hint = ctk.CTkLabel(
             self.empty_state,
             text="Conecte um perfil na barra lateral para ver o dashboard.",
-            font=ctk.CTkFont(size=13), text_color=Theme.TEXT_MUTED,
+            font=Theme.font(size=13), text_color=Theme.TEXT_MUTED,
         )
         hint.grid(row=3, column=0, sticky="n")
 
@@ -299,11 +300,13 @@ class MainWindow(ctk.CTk):
         self._clear_content()
         self._set_nav_active(self.maintenance_button)
 
-        label = ctk.CTkLabel(
-            self.content, text=f"Manutenção - {self.active_profile.name}",
-            font=ctk.CTkFont(size=26, weight="bold")
+        self.current_view = MaintenanceView(
+            self.content,
+            self.connection_manager,
+            self.active_profile,
         )
-        label.grid(row=1, column=0, padx=30, pady=30, sticky="nw")
+
+        self.current_view.grid(row=1, column=0, sticky="nsew")
 
     # ==========================================================
     # PERFIL ATIVO

@@ -2,27 +2,33 @@ import customtkinter as ctk
 
 
 class Theme:
-    # Fundos
-    BG_APP = "#15161b"        # janela / sidebar
-    BG_CONTENT = "#1b1c23"    # painel de conteúdo (direita)
-    SURFACE = "#20222b"       # botões secundários / inputs
-    CARD = "#22242e"          # cards de perfil
+    BG_APP = "#15161b"
+    BG_CONTENT = "#1b1c23"
+    SURFACE = "#20222b"
+    CARD = "#22242e"
 
-    # Bordas / divisores
     BORDER = "#2f3140"
 
-    # Texto
     TEXT = "#eef0f5"
     TEXT_MUTED = "#8b8fa3"
 
-    # Accent (ação primária)
     ACCENT = "#4f7cff"
     ACCENT_HOVER = "#3f65d9"
 
-    # Estados
     SUCCESS = "#3ecf8e"
+    SUCCESS_HOVER = "#31a873"
     DANGER = "#e5484d"
     DANGER_HOVER = "#c93f43"
+
+    FONT_FAMILY = "Bahnschrift"
+
+    @classmethod
+    def font(cls, size=13, weight="normal"):
+        return ctk.CTkFont(
+            family=cls.FONT_FAMILY,
+            size=size,
+            weight=weight,
+        )
 
 
 def apply():

@@ -1,11 +1,20 @@
 from app.repositories.sql_server_connection import SQLServerConnection
 from app.models.log_table import LogTable
 from app.models.log_file import LogFile
+from app.models.data_file import DataFile
 from app.models.database_status import DatabaseStatus
 
 class LogRepository:
     def __init__(self, connection: SQLServerConnection):
         self._connection = connection
+
+    @property
+    def database(self) -> str:
+        return self._connection.database
+
+    @property
+    def username(self) -> str:
+        return self._connection.username
 
     def get_log_files(self):
         conn = self._connection.connect()
@@ -26,6 +35,32 @@ class LogRepository:
 
         return [
             LogFile(
+                logical_name=row[0],
+                size_mb=row[1],
+                used_mb=row[2]
+            )
+            for row in rows
+        ]
+
+    def get_data_files(self):
+        conn = self._connection.connect()
+        cursor = conn.cursor()
+
+        query = """
+        SELECT
+            name AS LogicalName,
+            size * 8.0 / 1024 AS SizeMB,
+            FILEPROPERTY(name, 'SpaceUsed') * 8.0 / 1024 AS UsedMB
+        FROM sys.database_files
+        WHERE type_desc = 'ROWS';
+        """
+
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        cursor.close()
+
+        return [
+            DataFile(
                 logical_name=row[0],
                 size_mb=row[1],
                 used_mb=row[2]
@@ -113,6 +148,16 @@ class LogRepository:
         self._connection.execute(query)
 
     def shrink_log_file(self, logical_name: str):
+        query = f"""
+            DBCC SHRINKFILE (
+                [{logical_name}],
+                0
+            )
+        """
+
+        self._connection.execute_dbcc(query)
+
+    def shrink_data_file(self, logical_name: str):
         query = f"""
             DBCC SHRINKFILE (
                 [{logical_name}],

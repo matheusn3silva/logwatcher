@@ -1,0 +1,500 @@
+import customtkinter as ctk
+
+from app.views.gui.theme import Theme
+
+
+class MaintenanceView(ctk.CTkFrame):
+    def __init__(self, master, connection_manager, profile):
+        super().__init__(master, fg_color="transparent")
+
+        self.connection_manager = connection_manager
+        self.profile = profile
+        self.service = connection_manager.get_service(profile.id)
+        self.summary = None
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        self._create_header()
+        self._create_scroll_area()
+
+        self.load()
+
+    # ==========================================================
+    # HEADER
+    # ==========================================================
+
+    def _create_header(self):
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=25, pady=(0, 15))
+        header.grid_columnconfigure(0, weight=1)
+
+        title = ctk.CTkLabel(
+            header,
+            text=f"Manutenção — {self.profile.name}",
+            font=Theme.font(size=20, weight="bold"),
+            text_color=Theme.TEXT,
+        )
+        title.grid(row=0, column=0, sticky="w")
+
+        self.refresh_button = ctk.CTkButton(
+            header,
+            text="⟳  Atualizar",
+            width=110,
+            height=30,
+            fg_color=Theme.SURFACE,
+            hover_color=Theme.BORDER,
+            text_color=Theme.TEXT,
+            command=self.load,
+        )
+        self.refresh_button.grid(row=0, column=1, padx=(10, 0))
+
+    # ==========================================================
+    # ÁREA ROLÁVEL
+    # ==========================================================
+
+    def _create_scroll_area(self):
+        self.scroll = ctk.CTkScrollableFrame(
+            self,
+            fg_color="transparent",
+            scrollbar_button_color=Theme.BORDER,
+            scrollbar_button_hover_color=Theme.ACCENT,
+        )
+        self.scroll.grid(row=1, column=0, sticky="nsew", padx=25, pady=(0, 20))
+        self.scroll.grid_columnconfigure(0, weight=1)
+
+    def _clear_scroll(self):
+        for widget in self.scroll.winfo_children():
+            widget.destroy()
+
+    # ==========================================================
+    # CARREGAMENTO
+    # ==========================================================
+
+    def load(self):
+        self._clear_scroll()
+
+        if self.service is None:
+            self._show_message("Este perfil não está conectado.", is_error=True)
+            return
+
+        try:
+            _, logs = self.service.get_log_status()
+            _, data_files = self.service.get_data_status()
+
+            self.summary = None
+
+            if self.profile.tables:
+                tables_text = ",".join(self.profile.tables)
+                self.summary = self.service.analyze_database(tables_text)
+
+        except Exception as error:
+            self._show_message(
+                f"Não foi possível consultar os dados.\nMotivo: {error}",
+                is_error=True,
+            )
+            return
+
+        self._clear_scroll()
+
+        row = self._render_tables_section(row=0)
+        row = self._render_shrink_section(
+            row=row,
+            title="Arquivos de Log",
+            files=logs,
+            empty_text="Nenhum arquivo de log encontrado.",
+            on_shrink=self.shrink_log,
+        )
+        self._render_shrink_section(
+            row=row,
+            title="Arquivos de Dados",
+            files=data_files,
+            empty_text="Nenhum arquivo de dados encontrado.",
+            on_shrink=self.shrink_data,
+        )
+
+    def _show_message(self, text, is_error=False, row=0):
+        label = ctk.CTkLabel(
+            self.scroll,
+            text=text,
+            font=Theme.font(size=13),
+            text_color=Theme.DANGER if is_error else Theme.TEXT_MUTED,
+            justify="left",
+        )
+        label.grid(row=row, column=0, sticky="w", padx=5, pady=30)
+
+    # ==========================================================
+    # TABELAS MONITORADAS (TRUNCATE / DELETE)
+    # ==========================================================
+
+    def _render_tables_section(self, row):
+        wrapper = ctk.CTkFrame(self.scroll, fg_color="transparent")
+        wrapper.grid(row=row, column=0, sticky="ew", pady=(0, 20))
+        wrapper.grid_columnconfigure(0, weight=1)
+
+        title_label = ctk.CTkLabel(
+            wrapper, text="Tabelas Monitoradas",
+            font=Theme.font(size=14, weight="bold"), text_color=Theme.TEXT,
+        )
+        title_label.grid(row=0, column=0, sticky="w", pady=(0, 8))
+
+        table = ctk.CTkFrame(
+            wrapper, fg_color=Theme.CARD, corner_radius=10,
+            border_width=1, border_color=Theme.BORDER,
+        )
+        table.grid(row=1, column=0, sticky="ew")
+
+        headers = ["Tabela", "Schema", "Linhas", "Espaço (MB)", "Usado (MB)", ""]
+        numeric_cols = {2, 3, 4}
+
+        for col in range(len(headers)):
+            table.grid_columnconfigure(col, weight=0 if col == 5 else 1)
+
+        for col, header_text in enumerate(headers):
+            header_label = ctk.CTkLabel(
+                table, text=header_text,
+                font=Theme.font(size=11, weight="bold"), text_color=Theme.TEXT_MUTED,
+                anchor="e" if col in numeric_cols else "w",
+            )
+            header_label.grid(row=0, column=col, sticky="ew", padx=14, pady=(12, 8))
+
+        divider = ctk.CTkFrame(table, height=1, fg_color=Theme.BORDER)
+        divider.grid(row=1, column=0, columnspan=len(headers), sticky="ew", padx=14)
+
+        tables = self.summary.tables if self.summary else []
+
+        if not tables:
+            empty_label = ctk.CTkLabel(
+                table,
+                text=(
+                    "Nenhuma tabela encontrada."
+                    if self.profile.tables else
+                    "Nenhuma tabela monitorada configurada neste perfil."
+                ),
+                font=Theme.font(size=12), text_color=Theme.TEXT_MUTED,
+            )
+            empty_label.grid(
+                row=2, column=0, columnspan=len(headers),
+                sticky="w", padx=14, pady=(10, 14),
+            )
+            return row + 1
+
+        for r, monitored_table in enumerate(tables, start=2):
+            is_last = r == len(tables) + 1
+            values = [
+                monitored_table.name,
+                monitored_table.schema,
+                f"{monitored_table.rows:,}".replace(",", "."),
+                f"{monitored_table.total_mb:,.2f}",
+                f"{monitored_table.used_mb:,.2f}",
+            ]
+
+            for col, value in enumerate(values):
+                cell = ctk.CTkLabel(
+                    table, text=value,
+                    font=Theme.font(size=12), text_color=Theme.TEXT,
+                    anchor="e" if col in numeric_cols else "w",
+                )
+                cell.grid(
+                    row=r, column=col, sticky="ew",
+                    padx=14, pady=(8, 14 if is_last else 8),
+                )
+
+            actions = ctk.CTkFrame(table, fg_color="transparent")
+            actions.grid(
+                row=r, column=5, sticky="e",
+                padx=(0, 14), pady=(8, 14 if is_last else 8),
+            )
+
+            truncate_button = ctk.CTkButton(
+                actions, text="Truncate", width=82, height=26,
+                font=Theme.font(size=11),
+                fg_color=Theme.DANGER, hover_color=Theme.DANGER_HOVER,
+                command=lambda t=monitored_table, index=r - 2: self.clean_table(t, index, "TRUNCATE"),
+            )
+            truncate_button.pack(side="left", padx=(0, 6))
+
+            delete_button = ctk.CTkButton(
+                actions, text="Delete", width=82, height=26,
+                font=Theme.font(size=11),
+                fg_color=Theme.DANGER, hover_color=Theme.DANGER_HOVER,
+                command=lambda t=monitored_table, index=r - 2: self.clean_table(t, index, "DELETE"),
+            )
+            delete_button.pack(side="left")
+
+        return row + 1
+
+    def clean_table(self, table, index, action):
+        table_name = f"{table.schema}.{table.name}"
+
+        method = (
+            self.service.truncate_monitored_table
+            if action == "TRUNCATE"
+            else self.service.delete_monitored_table
+        )
+
+        self._confirm_danger(
+            title=f"{action} de tabela",
+            message=(
+                f"Executar {action} na tabela\n'{table_name}'?\n\n"
+                f"Esta operação pode remover permanentemente "
+                f"todos os registros da tabela e não pode ser desfeita."
+            ),
+            action=lambda: method(self.summary, index),
+            success_message=(
+                f"{action} executado com sucesso.\n\n"
+                f"Tabela: {table_name}"
+            ),
+        )
+
+    # ==========================================================
+    # ARQUIVOS (LOG / DADOS) — SHRINK
+    # ==========================================================
+
+    def _render_shrink_section(self, row, title, files, empty_text, on_shrink):
+        wrapper = ctk.CTkFrame(self.scroll, fg_color="transparent")
+        wrapper.grid(row=row, column=0, sticky="ew", pady=(0, 20))
+        wrapper.grid_columnconfigure(0, weight=1)
+
+        title_label = ctk.CTkLabel(
+            wrapper, text=title,
+            font=Theme.font(size=14, weight="bold"), text_color=Theme.TEXT,
+        )
+        title_label.grid(row=0, column=0, sticky="w", pady=(0, 8))
+
+        table = ctk.CTkFrame(
+            wrapper, fg_color=Theme.CARD, corner_radius=10,
+            border_width=1, border_color=Theme.BORDER,
+        )
+        table.grid(row=1, column=0, sticky="ew")
+
+        headers = ["Arquivo", "Tamanho (MB)", "Usado (MB)", "Livre (MB)", ""]
+        numeric_cols = {1, 2, 3}
+
+        for col in range(len(headers)):
+            table.grid_columnconfigure(col, weight=0 if col == 4 else 1)
+
+        for col, header_text in enumerate(headers):
+            header_label = ctk.CTkLabel(
+                table, text=header_text,
+                font=Theme.font(size=11, weight="bold"), text_color=Theme.TEXT_MUTED,
+                anchor="e" if col in numeric_cols else "w",
+            )
+            header_label.grid(row=0, column=col, sticky="ew", padx=14, pady=(12, 8))
+
+        divider = ctk.CTkFrame(table, height=1, fg_color=Theme.BORDER)
+        divider.grid(row=1, column=0, columnspan=len(headers), sticky="ew", padx=14)
+
+        if not files:
+            empty_label = ctk.CTkLabel(
+                table, text=empty_text,
+                font=Theme.font(size=12), text_color=Theme.TEXT_MUTED,
+            )
+            empty_label.grid(
+                row=2, column=0, columnspan=len(headers),
+                sticky="w", padx=14, pady=(10, 14),
+            )
+            return row + 1
+
+        for r, file in enumerate(files, start=2):
+            is_last = r == len(files) + 1
+            values = [
+                file.logical_name,
+                f"{file.size_mb:,.2f}",
+                f"{file.used_mb:,.2f}",
+                f"{file.free_mb:,.2f}",
+            ]
+
+            for col, value in enumerate(values):
+                cell = ctk.CTkLabel(
+                    table, text=value,
+                    font=Theme.font(size=12), text_color=Theme.TEXT,
+                    anchor="e" if col in numeric_cols else "w",
+                )
+                cell.grid(
+                    row=r, column=col, sticky="ew",
+                    padx=14, pady=(8, 14 if is_last else 8),
+                )
+
+            shrink_button = ctk.CTkButton(
+                table, text="Shrink", width=82, height=26,
+                font=Theme.font(size=11),
+                fg_color=Theme.ACCENT, hover_color=Theme.ACCENT_HOVER,
+                command=lambda f=file, index=r - 2: on_shrink(f, index),
+            )
+            shrink_button.grid(
+                row=r, column=4, sticky="e",
+                padx=(0, 14), pady=(8, 14 if is_last else 8),
+            )
+
+        return row + 1
+
+    def shrink_log(self, log_file, index):
+        self._confirm_shrink(
+            "Shrink do arquivo de Log", log_file,
+            lambda: self.service.shrink_log(index),
+        )
+
+    def shrink_data(self, data_file, index):
+        self._confirm_shrink(
+            "Shrink do arquivo de Dados", data_file,
+            lambda: self.service.shrink_data(index),
+        )
+
+    # ==========================================================
+    # DIÁLOGO — OPERAÇÃO DESTRUTIVA (TRUNCATE / DELETE)
+    # ==========================================================
+
+    def _confirm_danger(self, title, message, action, success_message):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(title)
+        dialog.geometry("440x260")
+        dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
+
+        dialog.transient(self)
+        dialog.grab_set()
+
+        icon_label = ctk.CTkLabel(
+            dialog, text="⚠ ATENÇÃO — OPERAÇÃO IRREVERSÍVEL",
+            font=Theme.font(size=14, weight="bold"), text_color=Theme.DANGER,
+        )
+        icon_label.pack(padx=20, pady=(22, 8))
+
+        label = ctk.CTkLabel(
+            dialog, text=message,
+            font=Theme.font(size=13), justify="left",
+        )
+        label.pack(padx=20, pady=(0, 15))
+
+        buttons = ctk.CTkFrame(dialog, fg_color="transparent")
+        buttons.pack(pady=(0, 15))
+
+        def confirm():
+            try:
+                action()
+                dialog.destroy()
+                self.load()
+                self._show_info(success_message)
+
+            except Exception as error:
+                dialog.destroy()
+                self._show_error(
+                    f"Não foi possível executar a operação.\n\n{error}"
+                )
+
+        ctk.CTkButton(
+            buttons, text="Cancelar",
+            fg_color=Theme.SURFACE, hover_color=Theme.BORDER, text_color=Theme.TEXT,
+            command=dialog.destroy,
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            buttons, text="Confirmar",
+            fg_color=Theme.DANGER, hover_color=Theme.DANGER_HOVER,
+            command=confirm,
+        ).pack(side="left", padx=5)
+
+    # ==========================================================
+    # DIÁLOGO — SHRINK
+    # ==========================================================
+
+    def _confirm_shrink(self, title, file, action):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(title)
+        dialog.geometry("440x260")
+        dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
+
+        dialog.transient(self)
+        dialog.grab_set()
+
+        icon_label = ctk.CTkLabel(
+            dialog, text="⚠ ATENÇÃO",
+            font=Theme.font(size=14, weight="bold"), text_color=Theme.DANGER,
+        )
+        icon_label.pack(padx=20, pady=(22, 8))
+
+        label = ctk.CTkLabel(
+            dialog,
+            text=(
+                f"Executar SHRINK no arquivo\n'{file.logical_name}'?\n\n"
+                f"O SQL Server determinará o menor tamanho possível.\n"
+                f"Essa operação pode gerar fragmentação."
+            ),
+            font=Theme.font(size=13), justify="left",
+        )
+        label.pack(padx=20, pady=(0, 15))
+
+        buttons = ctk.CTkFrame(dialog, fg_color="transparent")
+        buttons.pack(pady=(0, 15))
+
+        def confirm():
+            try:
+                result = action()
+                dialog.destroy()
+                self.load()
+
+                self._show_info(
+                    f"SHRINK concluído.\n\n"
+                    f"Arquivo    : {result.logical_name}\n"
+                    f"Antes      : {result.before_mb:.2f} MB\n"
+                    f"Depois     : {result.after_mb:.2f} MB\n"
+                    f"Recuperado : {result.recovered_mb:.2f} MB"
+                )
+
+            except Exception as error:
+                dialog.destroy()
+                self._show_error(
+                    f"Não foi possível executar o SHRINK.\n\n{error}"
+                )
+
+        ctk.CTkButton(
+            buttons, text="Cancelar",
+            fg_color=Theme.SURFACE, hover_color=Theme.BORDER, text_color=Theme.TEXT,
+            command=dialog.destroy,
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            buttons, text="Executar",
+            fg_color=Theme.ACCENT, hover_color=Theme.ACCENT_HOVER,
+            command=confirm,
+        ).pack(side="left", padx=5)
+
+    # ==========================================================
+    # MENSAGENS DE RESULTADO
+    # ==========================================================
+
+    def _show_info(self, message):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Resultado")
+        dialog.geometry("420x240")
+        dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
+
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog, text=message,
+            font=Theme.font(size=13), wraplength=360, justify="left",
+        ).pack(padx=30, pady=(30, 15))
+
+        ctk.CTkButton(dialog, text="OK", command=dialog.destroy).pack(pady=(0, 20))
+
+    def _show_error(self, message):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Erro")
+        dialog.geometry("420x220")
+        dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
+
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog, text=message, text_color=Theme.DANGER,
+            font=Theme.font(size=13), wraplength=360, justify="left",
+        ).pack(padx=30, pady=(30, 15))
+
+        ctk.CTkButton(dialog, text="OK", command=dialog.destroy).pack(pady=(0, 20))
