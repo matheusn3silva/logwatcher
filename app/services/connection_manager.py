@@ -25,7 +25,8 @@ class ConnectionManager:
             connection_service.connect(config)
 
             logwatcher_service = LogWatcherService(
-                connection_service.repository
+                connection_service.repository,
+                profile_name=profile.name,
             )
 
             if profile.tables:
