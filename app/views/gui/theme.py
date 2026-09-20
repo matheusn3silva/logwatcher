@@ -2,23 +2,24 @@ import customtkinter as ctk
 
 
 class Theme:
-    BG_APP = "#15161b"
-    BG_CONTENT = "#1b1c23"
-    SURFACE = "#20222b"
-    CARD = "#22242e"
+    # Paleta baseada no tema Dracula
+    BG_APP = "#21222c"       # fundo mais escuro (sidebar/base)
+    BG_CONTENT = "#282a36"   # fundo principal (Dracula background)
+    SURFACE = "#343746"      # botões/inputs neutros
+    CARD = "#2f313e"         # cards e painéis
 
-    BORDER = "#2f3140"
+    BORDER = "#44475a"       # Dracula "current line" / selection
 
-    TEXT = "#eef0f5"
-    TEXT_MUTED = "#8b8fa3"
+    TEXT = "#f8f8f2"         # Dracula foreground
+    TEXT_MUTED = "#6272a4"   # Dracula comment
 
-    ACCENT = "#4f7cff"
+    ACCENT = "#4f7cff"       # azul original, mantido
     ACCENT_HOVER = "#3f65d9"
 
-    SUCCESS = "#3ecf8e"
-    SUCCESS_HOVER = "#31a873"
-    DANGER = "#e5484d"
-    DANGER_HOVER = "#c93f43"
+    SUCCESS = "#50fa7b"      # Dracula green
+    SUCCESS_HOVER = "#3ddb64"
+    DANGER = "#ff5555"       # Dracula red
+    DANGER_HOVER = "#e64545"
 
     FONT_FAMILY = "Bahnschrift"
 
