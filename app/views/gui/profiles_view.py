@@ -2,11 +2,17 @@ import customtkinter as ctk
 
 from app.services.connection_profile_service import ConnectionProfileService
 
+from app.config.database_config import DatabaseConfig
+from app.services.connection_service import ConnectionService
+from app.services.logwatcher_service import LogWatcherService
+
 class ProfilesView(ctk.CTkFrame):
-    def __init__(self, master):
+    def __init__(self, master, connection_manager, on_profile_selected):
         super().__init__(master)
 
         self.profile_service = ConnectionProfileService()
+        self.connection_manager = connection_manager
+        self.on_profile_selected = on_profile_selected
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -85,10 +91,17 @@ class ProfilesView(ctk.CTkFrame):
         )
         card.grid(row=row, column=0, sticky="ew", padx=5, pady=6)
         card.grid_columnconfigure(0, weight=1)
+        
+        connected = self.connection_manager.is_connected(profile.id)
+
+        name_text = profile.name
+
+        if connected:
+            name_text += "  ● Conectado"
 
         name_label = ctk.CTkLabel(
             card,
-            text=profile.name,
+            text=name_text,
             font=ctk.CTkFont(
                 size=18,
                 weight="bold"
@@ -112,6 +125,35 @@ class ProfilesView(ctk.CTkFrame):
             fg_color="transparent"
         )
         buttons_frame.grid(row=0, column=1, rowspan=2, padx=20)
+
+        if connected:
+            select_button = ctk.CTkButton(
+                buttons_frame,
+                text="Selecionar",
+                width=90,
+                command=lambda p=profile:
+                    self.select_profile(p)
+            )
+            select_button.pack(side="left", padx=5)
+
+            disconnect_button = ctk.CTkButton(
+                buttons_frame,
+                text="Desconectar",
+                width=100,
+                command=lambda p=profile:
+                    self.disconnect_profile(p)
+            )
+            disconnect_button.pack(side="left", padx=5)
+
+        else:
+            connect_button = ctk.CTkButton(
+                buttons_frame,
+                text="Conectar",
+                width=90,
+                command=lambda p=profile:
+                    self.connect_profile(p)
+            )
+            connect_button.pack(side="left", padx=5)
 
         edit_button = ctk.CTkButton(
             buttons_frame,
@@ -144,23 +186,69 @@ class ProfilesView(ctk.CTkFrame):
 
         data = dialog.result
 
+        password_dialog = PasswordDialog(self)
+
+        self.wait_window(password_dialog)
+
+        if password_dialog.password is None:
+            return
+
+        password = password_dialog.password
+
+        connection_service = ConnectionService()
+
         try:
+            config = DatabaseConfig(
+                server=data["server"],
+                database=data["database"],
+                username=data["username"],
+                password=password
+            )
+
+            connection_service.connect(config)
+
+            logwatcher_service = LogWatcherService(connection_service.repository)
+
+            valid_tables, invalid_tables = (
+                logwatcher_service.validate_tables(
+                    ",".join(data["tables"])
+                )
+            )
+
+            if invalid_tables:
+                self.show_invalid_tables(invalid_tables)
+
+            if not valid_tables:
+                self.show_error(
+                    "Nenhuma das tabelas informadas existe "
+                    "no banco de dados."
+                )
+                return
 
             self.profile_service.create_profile(
                 name=data["name"],
                 server=data["server"],
                 database=data["database"],
                 username=data["username"],
-                tables=data["tables"]
+                tables=valid_tables
             )
 
             self.load_profiles()
 
+            if invalid_tables:
+                self.show_info(
+                    "Perfil criado.\n\n"
+                    "Somente as tabelas existentes foram salvas."
+                )
+
         except Exception as error:
             self.show_error(
-                f"Não foi possível criar o perfil.\n\n"
+                "Não foi possível criar o perfil.\n\n"
                 f"{error}"
             )
+
+        finally:
+            connection_service.disconnect()
 
     # ==========================================================
     # EDITAR PERFIL
@@ -179,23 +267,122 @@ class ProfilesView(ctk.CTkFrame):
 
         data = dialog.result
 
-        try:
+        if not data["tables"]:
             self.profile_service.update_profile(
                 profile_id=profile.id,
                 name=data["name"],
                 server=data["server"],
                 database=data["database"],
                 username=data["username"],
-                tables=data["tables"]
+                tables=[]
+            )
+
+            self.load_profiles()
+            return
+
+        password_dialog = PasswordDialog(self)
+
+        self.wait_window(password_dialog)
+
+        if password_dialog.password is None:
+            return
+
+        password = password_dialog.password
+
+        connection_service = ConnectionService()
+
+        try:
+            config = DatabaseConfig(
+                server=data["server"],
+                database=data["database"],
+                username=data["username"],
+                password=password
+            )
+
+            connection_service.connect(config)
+
+            logwatcher_service = LogWatcherService(connection_service.repository)
+
+            valid_tables, invalid_tables = (
+                logwatcher_service.validate_tables(
+                    ",".join(data["tables"])
+                )
+            )
+
+            if invalid_tables:
+                self.show_invalid_tables(invalid_tables)
+
+            if not valid_tables:
+                self.show_info(
+                    "Nenhuma das novas tabelas existe.\n\n"
+                    "As tabelas já cadastradas não foram alteradas."
+                )
+
+                return
+
+            self.profile_service.update_profile(
+                profile_id=profile.id,
+                name=data["name"],
+                server=data["server"],
+                database=data["database"],
+                username=data["username"],
+                tables=valid_tables
             )
 
             self.load_profiles()
 
+            if invalid_tables:
+                self.show_info(
+                    "Perfil atualizado.\n\n"
+                    "As tabelas existentes foram mantidas "
+                    "e somente as novas tabelas válidas foram adicionadas."
+                )
+
         except Exception as error:
             self.show_error(
-                f"Não foi possível atualizar o perfil\n\n"
+                "Não foi possível atualizar o perfil.\n\n"
                 f"{error}"
             )
+
+        finally:
+            connection_service.disconnect()
+
+
+    def show_invalid_tables(self, tables):
+        text = (
+            "As seguintes tabelas não foram encontradas:\n\n"
+            + "\n".join(
+                f"• {table}"
+                for table in tables
+            )
+        )
+        self.show_info(text)
+
+
+    def show_info(self, message):
+        dialog = ctk.CTkToplevel(self)
+
+        dialog.title("Informação")
+        dialog.geometry("500x300")
+        dialog.resizable(False, False)
+
+        dialog.transient(self)
+        dialog.grab_set()
+
+        label = ctk.CTkLabel(
+            dialog,
+            text=message,
+            wraplength=440,
+            justify="left"
+        )
+        label.pack(padx=30, pady=40)
+
+        button = ctk.CTkButton(
+            dialog,
+            text="OK",
+            command=dialog.destroy
+        )
+        button.pack()
 
     # ==========================================================
     # EXCLUIR
@@ -251,6 +438,49 @@ class ProfilesView(ctk.CTkFrame):
         confirm_button.pack(side="left", padx=5)
 
     # ==========================================================
+    # CONEXÃO
+    # ==========================================================
+
+    def connect_profile(self, profile):
+        dialog = PasswordDialog(self)
+
+        self.wait_window(dialog)
+
+        if dialog.password is None:
+            return
+
+        try:
+            self.connection_manager.connect(profile, dialog.password)
+
+            self.load_profiles()
+            self.select_profile(profile)
+
+        except Exception as error:
+            self.show_error(
+                f"Não foi possível conectar ao perfil.\n\n"
+                f"{error}"
+            )
+
+
+    def disconnect_profile(self, profile):
+        try:
+            self.connection_manager.disconnect(profile.id)
+            self.load_profiles()
+
+        except Exception as error:
+            self.show_error(
+                f"Não foi possível desconectar do perfil.\n\n"
+                f"{error}"
+            )
+
+
+    def select_profile(self, profile):
+        if not self.connection_manager.is_connected(profile.id):
+            return
+
+        self.on_profile_selected(profile)
+
+    # ==========================================================
     # ERRO
     # ==========================================================
     def show_error(self, message):
@@ -277,6 +507,7 @@ class ProfilesView(ctk.CTkFrame):
             command=dialog.destroy
         )
         button.pack()
+        
 
 # ==============================================================
 # DIALOG DE PERFIL
@@ -297,6 +528,7 @@ class ProfileDialog(ctk.CTkToplevel):
         self._create_fields(profile)
 
     def _create_fields(self, profile):
+
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
 
@@ -308,57 +540,160 @@ class ProfileDialog(ctk.CTkToplevel):
                 weight="bold"
             )
         )
-        self.title_label.grid(row=0, column=0, columnspan=2, padx=30, pady=(25, 30))
+        self.title_label.grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=30,
+            pady=(25, 30)
+        )
 
-        self.name_entry = self._create_entry("Nome do perfil", 1, profile.name if profile else "")
+        self.name_entry = self._create_entry(
+            "Nome do perfil",
+            1,
+            profile.name if profile else ""
+        )
 
-        self.server_entry  = self._create_entry("Servidor", 2, profile.server if profile else "")
+        self.server_entry = self._create_entry(
+            "Servidor",
+            2,
+            profile.server if profile else ""
+        )
 
-        self.database_entry = self._create_entry("Banco de dados", 3, profile.database if profile else "")
+        self.database_entry = self._create_entry(
+            "Banco de dados",
+            3,
+            profile.database if profile else ""
+        )
 
-        self.username_entry = self._create_entry("Usuário", 4, profile.username if profile else "")
+        self.username_entry = self._create_entry(
+            "Usuário",
+            4,
+            profile.username if profile else ""
+        )
 
-        tables = ""
+        # ==========================================================
+        # TABELAS
+        # ==========================================================
 
-        if profile and profile.tables:
-            tables = ", ".join(profile.tables)
+        if profile:
 
-        self.tables_entry = self._create_entry("Tabelas monitoradas", 5, tables)
+            current_tables_label = ctk.CTkLabel(
+                self,
+                text="Tabelas atualmente cadastradas:",
+                anchor="w"
+            )
+
+            current_tables_label.grid(
+                row=5,
+                column=0,
+                columnspan=2,
+                padx=30,
+                pady=(10, 5),
+                sticky="w"
+            )
+
+            current_tables = ", ".join(profile.tables)
+
+            current_tables_value = ctk.CTkLabel(
+                self,
+                text=current_tables or "Nenhuma tabela cadastrada.",
+                anchor="w",
+                justify="left"
+            )
+
+            current_tables_value.grid(
+                row=6,
+                column=0,
+                columnspan=2,
+                padx=30,
+                pady=(0, 10),
+                sticky="w"
+            )
+
+            self.tables_entry = self._create_entry(
+                "Novas tabelas",
+                7,
+                ""
+            )
+
+            info_row = 8
+            buttons_row = 9
+
+        else:
+
+            self.tables_entry = self._create_entry(
+                "Tabelas monitoradas",
+                5,
+                ""
+            )
+
+            info_row = 6
+            buttons_row = 7
+
+        # ==========================================================
+        # INFORMAÇÃO
+        # ==========================================================
 
         self.info_label = ctk.CTkLabel(
             self,
-            text=("Informe as tabelas separadas por vírgula."),
+            text="Informe as tabelas separadas por vírgula.",
             font=ctk.CTkFont(size=12)
         )
-        self.info_label.grid(row=6, column=1, padx=(0, 30), pady=(0, 15), sticky="w")
+
+        self.info_label.grid(
+            row=info_row,
+            column=1,
+            padx=(0, 30),
+            pady=(0, 15),
+            sticky="w"
+        )
+
+        # ==========================================================
+        # BOTÕES
+        # ==========================================================
 
         buttons = ctk.CTkFrame(
             self,
             fg_color="transparent"
         )
-        buttons.grid(row=7, column=0, columnspan=2, pady=30)
+
+        buttons.grid(
+            row=buttons_row,
+            column=0,
+            columnspan=2,
+            pady=30
+        )
 
         cancel_button = ctk.CTkButton(
             buttons,
             text="Cancelar",
             command=self.destroy
         )
-        cancel_button.pack(side="left", padx=5)
+
+        cancel_button.pack(
+            side="left",
+            padx=5
+        )
 
         save_button = ctk.CTkButton(
             buttons,
             text="Salvar",
             command=self.save
         )
-        save_button.pack(side="left", padx=5)
 
+        save_button.pack(
+            side="left",
+            padx=5
+        )
+    
     def _create_entry(self, label_text, row, value):
         label = ctk.CTkLabel(
             self, 
             text=label_text,
-            anchor="e"
+            anchor="w"
         )
-        label.grid(row=row, column=0, padx=(30, 15), pady=8, sticky="e")
+        label.grid(row=row, column=0, padx=(30, 15), pady=8, sticky="w")
 
         entry = ctk.CTkEntry(
             self,
@@ -431,3 +766,65 @@ class ProfileDialog(ctk.CTkToplevel):
             command=dialog.destroy
         )
         button.pack()
+
+class PasswordDialog(ctk.CTkToplevel):
+    def __init__(self, master):
+        super().__init__(master)
+
+        self.password = None
+
+        self.title("Senha do banco")
+        self.geometry("400x210")
+        self.resizable(False, False)
+
+        self.transient(master)
+        self.grab_set()
+
+        self._create_widgets()
+
+    def _create_widgets(self):
+        title = ctk.CTkLabel(
+            self,
+            text="Senha do banco",
+            font=ctk.CTkFont(
+                size=20,
+                weight="bold"
+            )
+        )
+        title.pack(pady=(25, 20))
+
+        self.password_entry = ctk.CTkEntry(
+            self,
+            width=300,
+            show="*"
+        )
+        self.password_entry.pack(pady=5)
+        self.password_entry.focus()
+
+        buttons = ctk.CTkFrame(
+            self,
+            fg_color="transparent"
+        )
+        buttons.pack(pady=20)
+
+        cancel_button = ctk.CTkButton(
+            buttons,
+            text="Cancelar",
+            command=self.destroy
+        )
+        cancel_button.pack(side="left", padx=5)
+
+        connect_button = ctk.CTkButton(
+            buttons,
+            text="Conectar",
+            command=self.confirm
+        )
+        connect_button.pack(side="left", padx=5)
+
+    def confirm(self):
+        self.password = self.password_entry.get()
+
+        if not self.password:
+            return
+
+        self.destroy()

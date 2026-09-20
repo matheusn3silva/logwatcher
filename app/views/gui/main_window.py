@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from app.views.gui.profiles_view import ProfilesView
+from app.services.connection_manager import ConnectionManager
 
 class MainWindow(ctk.CTk):
     def __init__(self):
@@ -8,6 +9,9 @@ class MainWindow(ctk.CTk):
         self.title("LogWatcher")
         self.geometry("1100x700")
         self.minsize(900, 600)
+
+        self.connection_manager = ConnectionManager()
+        self.active_profile = None
 
         self._configure_grid()
         self._create_sidebar()
@@ -111,9 +115,18 @@ class MainWindow(ctk.CTk):
     def show_profiles(self):
         self._clear_content()
 
-        self.current_view = ProfilesView(self.content)
+        self.current_view = ProfilesView(
+            self.content,
+            self.connection_manager,
+            self.on_profile_selected
+        )
 
         self.current_view.grid(row=0, column=0, sticky="nsew")
+
+    def on_profile_selected(self, profile):
+        self.active_profile = profile
+
+        print(f"Perfil ativo: {profile.name}")
 
     def show_maintenance(self):
         self._clear_content()
