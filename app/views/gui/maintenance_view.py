@@ -1,7 +1,7 @@
 import customtkinter as ctk
 
 from app.views.gui.theme import Theme
-
+from app.views.gui.tooltip import Tooltip
 
 class MaintenanceView(ctk.CTkFrame):
     def __init__(self, master, connection_manager, profile):
@@ -213,6 +213,7 @@ class MaintenanceView(ctk.CTkFrame):
                 command=lambda t=monitored_table, index=r - 2: self.clean_table(t, index, "TRUNCATE"),
             )
             truncate_button.pack(side="left", padx=(0, 6))
+            Tooltip(truncate_button, "TRUNCATE remove todos os registros rapidamente, sem acionar triggers, e não pode ser desfeito.")
 
             delete_button = ctk.CTkButton(
                 actions, text="Delete", width=82, height=26,
@@ -221,6 +222,7 @@ class MaintenanceView(ctk.CTkFrame):
                 command=lambda t=monitored_table, index=r - 2: self.clean_table(t, index, "DELETE"),
             )
             delete_button.pack(side="left")
+            Tooltip(delete_button, "DELETE remove todos os registros linha a linha, aciona triggers (se existirem) e não pode ser desfeito.")
 
         return row + 1
 
@@ -233,13 +235,22 @@ class MaintenanceView(ctk.CTkFrame):
             else self.service.delete_monitored_table
         )
 
+        hint = (
+            "TRUNCATE é mais rápido, reinicia a contagem de identidade "
+            "e não aciona triggers da tabela."
+            if action == "TRUNCATE" else
+            "DELETE remove linha a linha, aciona triggers (se existirem) "
+            "e gera mais log de transação — pode ser mais lento em tabelas grandes."
+        )
+
         self._confirm_danger(
             title=f"{action} de tabela",
-            message=(
-                f"Executar {action} na tabela\n'{table_name}'?\n\n"
-                f"Esta operação pode remover permanentemente "
-                f"todos os registros da tabela e não pode ser desfeita."
+            table_name=table_name,
+            description=(
+                f"Você está prestes a executar {action} na tabela abaixo. "
+                f"Essa operação remove todos os registros e não pode ser desfeita."
             ),
+            hint=hint,
             action=lambda: method(self.summary, index),
             success_message=(
                 f"{action} executado com sucesso.\n\n"
@@ -326,6 +337,7 @@ class MaintenanceView(ctk.CTkFrame):
                 row=r, column=4, sticky="e",
                 padx=(0, 14), pady=(8, 14 if is_last else 8),
             )
+            Tooltip(shrink_button, "Reduz o tamanho físico do arquivo. Requer permissão db_owner ou sysadmin.")
 
         return row + 1
 
@@ -345,10 +357,10 @@ class MaintenanceView(ctk.CTkFrame):
     # DIÁLOGO — OPERAÇÃO DESTRUTIVA (TRUNCATE / DELETE)
     # ==========================================================
 
-    def _confirm_danger(self, title, message, action, success_message):
+    def _confirm_danger(self, title, table_name, description, hint, action, success_message):
         dialog = ctk.CTkToplevel(self)
         dialog.title(title)
-        dialog.geometry("440x260")
+        dialog.geometry("480x320")
         dialog.resizable(False, False)
         dialog.configure(fg_color=Theme.BG_CONTENT)
 
@@ -356,19 +368,35 @@ class MaintenanceView(ctk.CTkFrame):
         dialog.grab_set()
 
         icon_label = ctk.CTkLabel(
-            dialog, text="⚠ ATENÇÃO — OPERAÇÃO IRREVERSÍVEL",
-            font=Theme.font(size=14, weight="bold"), text_color=Theme.DANGER,
+            dialog, text="⚠ Operação irreversível",
+            font=Theme.font(size=15, weight="bold"), text_color=Theme.DANGER,
+            wraplength=420, justify="left",
         )
-        icon_label.pack(padx=20, pady=(22, 8))
+        icon_label.pack(padx=25, pady=(22, 10), anchor="w")
 
-        label = ctk.CTkLabel(
-            dialog, text=message,
-            font=Theme.font(size=13), justify="left",
+        description_label = ctk.CTkLabel(
+            dialog, text=description,
+            font=Theme.font(size=13), wraplength=420, justify="left",
         )
-        label.pack(padx=20, pady=(0, 15))
+        description_label.pack(padx=25, pady=(0, 10), anchor="w", fill="x")
+
+        table_box = ctk.CTkLabel(
+            dialog, text=table_name,
+            font=Theme.font(size=13, weight="bold"), text_color=Theme.TEXT,
+            fg_color=Theme.SURFACE, corner_radius=6,
+            wraplength=420, justify="left",
+        )
+        table_box.pack(padx=25, pady=(0, 12), fill="x", ipady=8)
+
+        hint_label = ctk.CTkLabel(
+            dialog, text=f"💡 {hint}",
+            font=Theme.font(size=11), text_color=Theme.TEXT_MUTED,
+            wraplength=420, justify="left",
+        )
+        hint_label.pack(padx=25, pady=(0, 18), anchor="w", fill="x")
 
         buttons = ctk.CTkFrame(dialog, fg_color="transparent")
-        buttons.pack(pady=(0, 15))
+        buttons.pack(pady=(0, 20))
 
         def confirm():
             try:
@@ -402,7 +430,7 @@ class MaintenanceView(ctk.CTkFrame):
     def _confirm_shrink(self, title, file, action):
         dialog = ctk.CTkToplevel(self)
         dialog.title(title)
-        dialog.geometry("440x260")
+        dialog.geometry("480x380")
         dialog.resizable(False, False)
         dialog.configure(fg_color=Theme.BG_CONTENT)
 
@@ -410,24 +438,55 @@ class MaintenanceView(ctk.CTkFrame):
         dialog.grab_set()
 
         icon_label = ctk.CTkLabel(
-            dialog, text="⚠ ATENÇÃO",
-            font=Theme.font(size=14, weight="bold"), text_color=Theme.DANGER,
+            dialog, text="⚠ Atenção",
+            font=Theme.font(size=15, weight="bold"), text_color=Theme.DANGER,
+            wraplength=420, justify="left",
         )
-        icon_label.pack(padx=20, pady=(22, 8))
+        icon_label.pack(padx=25, pady=(22, 10), anchor="w")
 
-        label = ctk.CTkLabel(
+        description_label = ctk.CTkLabel(
             dialog,
             text=(
-                f"Executar SHRINK no arquivo\n'{file.logical_name}'?\n\n"
-                f"O SQL Server determinará o menor tamanho possível.\n"
-                f"Essa operação pode gerar fragmentação."
+                "Executar SHRINK no arquivo abaixo? O SQL Server determinará "
+                "o menor tamanho possível, o que pode gerar fragmentação."
             ),
-            font=Theme.font(size=13), justify="left",
+            font=Theme.font(size=13), wraplength=420, justify="left",
         )
-        label.pack(padx=20, pady=(0, 15))
+        description_label.pack(padx=25, pady=(0, 10), anchor="w", fill="x")
+
+        file_box = ctk.CTkLabel(
+            dialog, text=file.logical_name,
+            font=Theme.font(size=13, weight="bold"), text_color=Theme.TEXT,
+            fg_color=Theme.SURFACE, corner_radius=6,
+            wraplength=420, justify="left",
+        )
+        file_box.pack(padx=25, pady=(0, 12), fill="x", ipady=8)
+
+        impact_label = ctk.CTkLabel(
+            dialog,
+            text=(
+                f"Tamanho atual          : {file.size_mb:,.2f} MB\n"
+                f"Em uso                 : {file.used_mb:,.2f} MB\n"
+                f"Estimativa recuperável : até {file.free_mb:,.2f} MB"
+            ),
+            font=Theme.font(size=12), text_color=Theme.TEXT, justify="left",
+        )
+        impact_label.pack(padx=25, pady=(0, 12), anchor="w")
+
+        permission_label = ctk.CTkLabel(
+            dialog,
+            text=(
+                "💡 O valor recuperado real pode ser menor que a estimativa. "
+                "É necessário que o usuário do banco tenha a permissão "
+                "db_owner ou sysadmin para executar o SHRINK."
+            ),
+            font=Theme.font(size=11), text_color=Theme.TEXT_MUTED,
+            wraplength=420, justify="left",
+        )
+        permission_label.pack(padx=25, pady=(0, 18), anchor="w", fill="x")
 
         buttons = ctk.CTkFrame(dialog, fg_color="transparent")
-        buttons.pack(pady=(0, 15))
+        buttons.pack(pady=(0, 20))
 
         def confirm():
             try:
@@ -446,7 +505,9 @@ class MaintenanceView(ctk.CTkFrame):
             except Exception as error:
                 dialog.destroy()
                 self._show_error(
-                    f"Não foi possível executar o SHRINK.\n\n{error}"
+                    f"Não foi possível executar o SHRINK.\n\n"
+                    f"Verifique se o usuário do banco possui a permissão "
+                    f"db_owner ou sysadmin.\n\n{error}"
                 )
 
         ctk.CTkButton(

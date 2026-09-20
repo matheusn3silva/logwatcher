@@ -5,6 +5,7 @@ from app.config.database_config import DatabaseConfig
 from app.services.connection_service import ConnectionService
 from app.services.logwatcher_service import LogWatcherService
 from app.views.gui.theme import Theme
+from app.views.gui.tooltip import Tooltip
 
 class ProfilesView(ctk.CTkFrame):
     def __init__(self, master, connection_manager, on_profile_selected,
@@ -151,9 +152,11 @@ class ProfilesView(ctk.CTkFrame):
         delete_button = ctk.CTkButton(
             buttons_frame, text="Excluir", height=26, font=small_font,
             fg_color=Theme.SURFACE, hover_color=Theme.DANGER_HOVER,
+            border_width=1, border_color="#ffffff",
             command=lambda p=profile: self.confirm_delete(p)
         )
         delete_button.grid(row=edit_row, column=1, sticky="ew", padx=(3, 0))
+        Tooltip(delete_button, "Remove o perfil salvo localmente. Não afeta os dados do banco.")
 
     # ==========================================================
     # NOVO PERFIL
