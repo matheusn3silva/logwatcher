@@ -1,6 +1,7 @@
 import customtkinter as ctk
 
 from app.views.gui.profiles_view import ProfilesView
+from app.views.gui.dashboard_view import DashboardView
 from app.views.gui.theme import Theme
 from app.views.gui import theme as theme_module
 from app.services.connection_manager import ConnectionManager
@@ -282,11 +283,13 @@ class MainWindow(ctk.CTk):
         self._clear_content()
         self._set_nav_active(self.dashboard_button)
 
-        label = ctk.CTkLabel(
-            self.content, text=f"Dashboard - {self.active_profile.name}",
-            font=ctk.CTkFont(size=24, weight="bold"), text_color=Theme.TEXT,
+        self.current_view = DashboardView(
+            self.content,
+            self.connection_manager,
+            self.active_profile,
         )
-        label.grid(row=1, column=0, padx=25, pady=(15, 20), sticky="nw")
+
+        self.current_view.grid(row=1, column=0, sticky="nsew")
 
     # ==========================================================
     # MANUTENÇÃO
