@@ -473,8 +473,8 @@ class ProfilesView(ctk.CTkFrame):
     # ==========================================================
     def show_error(self, message):
         dialog = ctk.CTkToplevel(self)
-        dialog.title("Erro")
-        dialog.geometry("450x220")
+        dialog.title("Validação")
+        dialog.geometry("400x180")
         dialog.resizable(False, False)
         dialog.configure(fg_color=Theme.BG_CONTENT)
 
@@ -484,14 +484,16 @@ class ProfilesView(ctk.CTkFrame):
         label = ctk.CTkLabel(
             dialog,
             text=message,
-            wraplength=400,
-            justify="center"
+            wraplength=350,
+            text_color=Theme.TEXT,
         )
         label.pack(padx=20, pady=30)
 
         button = ctk.CTkButton(
             dialog,
             text="OK",
+            fg_color=Theme.ACCENT,
+            hover_color=Theme.ACCENT_HOVER,
             command=dialog.destroy
         )
         button.pack()
@@ -509,6 +511,7 @@ class ProfileDialog(ctk.CTkToplevel):
         self.title(title)
         self.geometry("500x600")
         self.resizable(False, False)
+        self.configure(fg_color=Theme.BG_CONTENT)
 
         self.transient(master)
         self.grab_set()
@@ -523,17 +526,11 @@ class ProfileDialog(ctk.CTkToplevel):
         self.title_label = ctk.CTkLabel(
             self,
             text=self.title(),
-            font=Theme.font(
-                size=22,
-                weight="bold"
-            )
+            font=Theme.font(size=22, weight="bold"),
+            text_color=Theme.TEXT,
         )
         self.title_label.grid(
-            row=0,
-            column=0,
-            columnspan=2,
-            padx=30,
-            pady=(25, 30)
+            row=0, column=0, columnspan=2, padx=30, pady=(25, 30)
         )
 
         self.name_entry = self._create_entry(
@@ -565,21 +562,14 @@ class ProfileDialog(ctk.CTkToplevel):
         # ==========================================================
 
         if profile:
-
             current_tables_label = ctk.CTkLabel(
                 self,
                 text="Tabelas atualmente cadastradas:",
-                anchor="w"
+                anchor="w",
+                font=Theme.font(size=12),
+                text_color=Theme.TEXT_MUTED,
             )
-
-            current_tables_label.grid(
-                row=5,
-                column=0,
-                columnspan=2,
-                padx=30,
-                pady=(10, 5),
-                sticky="w"
-            )
+            current_tables_label.grid(row=5, column=0, columnspan=2, padx=30, pady=(10, 5), sticky="w")
 
             current_tables = ", ".join(profile.tables)
 
@@ -587,34 +577,18 @@ class ProfileDialog(ctk.CTkToplevel):
                 self,
                 text=current_tables or "Nenhuma tabela cadastrada.",
                 anchor="w",
-                justify="left"
+                justify="left",
+                text_color=Theme.TEXT,
             )
+            current_tables_value.grid(row=6, column=0, columnspan=2, padx=30, pady=(0, 10), sticky="w")
 
-            current_tables_value.grid(
-                row=6,
-                column=0,
-                columnspan=2,
-                padx=30,
-                pady=(0, 10),
-                sticky="w"
-            )
-
-            self.tables_entry = self._create_entry(
-                "Novas tabelas",
-                7,
-                ""
-            )
+            self.tables_entry = self._create_entry("Novas tabelas", 7, "")
 
             info_row = 8
             buttons_row = 9
 
         else:
-
-            self.tables_entry = self._create_entry(
-                "Tabelas monitoradas",
-                5,
-                ""
-            )
+            self.tables_entry = self._create_entry("Tabelas monitoradas", 5, "")
 
             info_row = 6
             buttons_row = 7
@@ -626,66 +600,66 @@ class ProfileDialog(ctk.CTkToplevel):
         self.info_label = ctk.CTkLabel(
             self,
             text="Informe as tabelas separadas por vírgula.",
-            font=Theme.font(size=12)
+            font=Theme.font(size=12),
+            text_color=Theme.TEXT_MUTED,
         )
 
-        self.info_label.grid(
-            row=info_row,
-            column=1,
-            padx=(0, 30),
-            pady=(0, 15),
-            sticky="w"
-        )
+        self.info_label.grid(row=info_row, column=1, padx=(0, 30), pady=(0, 15), sticky="w")
 
         # ==========================================================
         # BOTÕES
         # ==========================================================
 
         buttons = ctk.CTkFrame(
-            self,
+            self, 
             fg_color="transparent"
         )
 
-        buttons.grid(
-            row=buttons_row,
-            column=0,
-            columnspan=2,
-            pady=30
-        )
+        buttons.grid(row=buttons_row, column=0, columnspan=2, pady=30)
 
         cancel_button = ctk.CTkButton(
             buttons,
             text="Cancelar",
+            width=120,
+            height=36,
+            font=Theme.font(size=13),
+            fg_color=Theme.SURFACE,
+            hover_color=Theme.BORDER,
+            text_color=Theme.TEXT,
             command=self.destroy
         )
-
-        cancel_button.pack(
-            side="left",
-            padx=5
-        )
+        cancel_button.pack(side="left", padx=5)
 
         save_button = ctk.CTkButton(
             buttons,
             text="Salvar",
+            width=160,
+            height=36,
+            font=Theme.font(size=13, weight="bold"),
+            fg_color=Theme.ACCENT,
+            hover_color=Theme.ACCENT_HOVER,
+            text_color=Theme.TEXT,
             command=self.save
         )
-
-        save_button.pack(
-            side="left",
-            padx=5
-        )
+        save_button.pack(side="left", padx=5)
     
     def _create_entry(self, label_text, row, value):
         label = ctk.CTkLabel(
-            self, 
+            self,
             text=label_text,
-            anchor="w"
+            anchor="w",
+            font=Theme.font(size=12),
+            text_color=Theme.TEXT_MUTED,
         )
         label.grid(row=row, column=0, padx=(30, 15), pady=8, sticky="w")
 
         entry = ctk.CTkEntry(
             self,
-            width=320
+            width=320,
+            height=34,
+            fg_color=Theme.SURFACE,
+            border_color=Theme.BORDER,
+            text_color=Theme.TEXT,
         )
         entry.grid(row=row, column=1, padx=(0, 30), pady=8, sticky="ew")
         entry.insert(0, value)
