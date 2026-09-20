@@ -6,6 +6,7 @@ from app.config.database_config import DatabaseConfig
 from app.services.connection_profile_service import ConnectionProfileService
 from app.services.connection_service import ConnectionService
 from app.services.logwatcher_service import LogWatcherService
+from app.services.table_parser import TableParser
 
 
 class LogWatcherCLI:
@@ -231,11 +232,19 @@ class LogWatcherCLI:
             self.pause()
             return
 
-        tables = self._parse_tables(tables_text)
+        try:
+            tables = TableParser.parse(tables_text)
+        except ValueError as error:
+            self.print_error(
+                f"{error}\n"
+                "Verifique se os nomes estão separados por vírgula (,) "
+                "e contêm apenas letras, números e underline (_)."
+            )
+            self.pause()
+            return
 
         if not tables:
             self.print_error("Informe pelo menos uma tabela.")
-
             self.pause()
             return
 
@@ -251,7 +260,7 @@ class LogWatcherCLI:
 
             print("\nValidando conexão...")
 
-            connection_service.connect(config)
+            connection_service.connect(config, profile_name=name)
 
             logwatcher_service = LogWatcherService(connection_service.repository)
 
@@ -281,6 +290,7 @@ class LogWatcherCLI:
                 database=database,
                 username=username,
                 tables=valid_tables,
+                invalid_tables=invalid_tables,
             )
 
             self.print_success(
@@ -376,20 +386,15 @@ class LogWatcherCLI:
             "(separadas por vírgula): "
         ).strip()
 
-        new_tables = self._parse_tables(tables_text)
-
-        # Nenhuma tabela nova.
-        # Mantém as tabelas existentes.
-        if not new_tables:
-            self._save_profile_changes(
-                profile=profile,
-                name=name,
-                server=server,
-                database=database,
-                username=username,
-                tables=[],
+        try:
+            new_tables = TableParser.parse(tables_text)
+        except ValueError as error:
+            self.print_error(
+                f"{error}\n"
+                "Verifique se os nomes estão separados por vírgula (,) "
+                "e contêm apenas letras, números e underline (_)."
             )
-
+            self.pause()
             return
 
         password = input(
@@ -408,7 +413,7 @@ class LogWatcherCLI:
             )
             print("\nValidando conexão...")
 
-            connection_service.connect(config)
+            connection_service.connect(config, profile_name=name)
 
             logwatcher_service = LogWatcherService(connection_service.repository)
 
@@ -442,6 +447,7 @@ class LogWatcherCLI:
                 database=database,
                 username=username,
                 tables=valid_new_tables,
+                invalid_tables=invalid_tables,
             )
 
         except Exception as error:
@@ -464,6 +470,7 @@ class LogWatcherCLI:
         database,
         username,
         tables,
+        invalid_tables=None,
     ):
         try:
             self.profile_service.update_profile(
@@ -473,6 +480,7 @@ class LogWatcherCLI:
                 database=database,
                 username=username,
                 tables=tables,
+                invalid_tables=invalid_tables,
             )
 
             self.print_success("Perfil de conexão atualizado.")
@@ -586,7 +594,7 @@ class LogWatcherCLI:
         try:
             print("\nConectando...")
 
-            version = (self.connection_service.connect(config))
+            version = (self.connection_service.connect(config, profile_name=self.selected_profile.name))
 
             self.logwatcher_service = (LogWatcherService(self.connection_service.repository))
 

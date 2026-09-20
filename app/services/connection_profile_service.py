@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.models.connection_profile import ConnectionProfile
+from app.utils.audit_logger import AuditLogger
 
 
 class ConnectionProfileService:
@@ -99,7 +100,8 @@ class ConnectionProfileService:
         server: str,
         database: str,
         username: str,
-        tables: list[str]
+        tables: list[str],
+        invalid_tables: list[str] = None,
     ):
         profiles = self.load_profiles()
 
@@ -118,6 +120,12 @@ class ConnectionProfileService:
 
         self.save_profiles(profiles)
 
+        self._log(
+            profile, "PERFIL_CRIADO",
+            f"Perfil criado (servidor={profile.server}, banco={profile.database}). "
+            f"{self._format_tables_for_log(profile.tables, invalid_tables)}"
+        )
+
         return profile
 
     # ==========================================================
@@ -131,7 +139,8 @@ class ConnectionProfileService:
         server: str,
         database: str,
         username: str,
-        tables: list[str]
+        tables: list[str],
+        invalid_tables: list[str] = None,
     ):
         profiles = self.load_profiles()
 
@@ -144,6 +153,8 @@ class ConnectionProfileService:
             profile.database = database.strip()
             profile.username = username.strip()
 
+            added_tables = self._normalize_tables(tables)
+
             profile.tables = self._merge_tables(
                 current_tables=profile.tables,
                 new_tables=tables
@@ -151,11 +162,15 @@ class ConnectionProfileService:
 
             self.save_profiles(profiles)
 
+            self._log(
+                profile, "PERFIL_EDITADO",
+                f"Perfil atualizado (servidor={profile.server}, banco={profile.database}). "
+                f"{self._format_tables_for_log(added_tables, invalid_tables, label='Tabelas novas')}"
+            )
+
             return profile
 
-        raise ValueError(
-            "Perfil de conexão não encontrado."
-        )
+        raise ValueError("Perfil de conexão não encontrado.")
 
     # ==========================================================
     # EXCLUSÃO
@@ -167,6 +182,11 @@ class ConnectionProfileService:
     ):
         profiles = self.load_profiles()
 
+        deleted_profile = next(
+            (profile for profile in profiles if profile.id == profile_id),
+            None,
+        )
+
         filtered_profiles = [
             profile
             for profile in profiles
@@ -177,6 +197,13 @@ class ConnectionProfileService:
             raise ValueError("Perfil de conexão não encontrado.")
 
         self.save_profiles(filtered_profiles)
+
+        if deleted_profile is not None:
+            self._log(
+                deleted_profile, "PERFIL_EXCLUIDO",
+                f"Perfil removido (servidor={deleted_profile.server}, "
+                f"banco={deleted_profile.database})."
+            )
 
     # ==========================================================
     # CONSULTA
@@ -250,3 +277,33 @@ class ConnectionProfileService:
             existing.add(key)
 
         return result
+
+    # ==========================================================
+    # LOGS
+    # ==========================================================
+    @staticmethod
+    def _log(profile, action, message):
+        try:
+            AuditLogger.log(
+                database=profile.database,
+                username=profile.username,
+                message=message,
+                profile=profile.name,
+                action=action,
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _format_tables_for_log(valid_tables, invalid_tables, label="Tabelas"):
+        parts = []
+
+        if valid_tables:
+            parts.append(f"{label}: {', '.join(valid_tables)}")
+        else:
+            parts.append(f"{label}: nenhuma")
+
+        if invalid_tables:
+            parts.append(f"Não encontradas: {', '.join(invalid_tables)}")
+
+        return " | ".join(parts)

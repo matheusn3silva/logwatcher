@@ -22,7 +22,7 @@ class ConnectionManager:
         connection_service = ConnectionService()
 
         try:
-            connection_service.connect(config)
+            connection_service.connect(config, profile_name=profile.name)
 
             logwatcher_service = LogWatcherService(
                 connection_service.repository,

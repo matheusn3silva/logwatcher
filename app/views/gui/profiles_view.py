@@ -6,6 +6,7 @@ from app.services.connection_service import ConnectionService
 from app.services.logwatcher_service import LogWatcherService
 from app.views.gui.theme import Theme
 from app.views.gui.tooltip import Tooltip
+from app.services.table_parser import TableParser
 
 class ProfilesView(ctk.CTkFrame):
     def __init__(self, master, connection_manager, on_profile_selected,
@@ -176,6 +177,7 @@ class ProfilesView(ctk.CTkFrame):
             profile_name=data["name"],
             server=data["server"],
             database=data["database"],
+            message="Coloque a senha para validar as tabelas informadas.",
         )
 
         self.wait_window(password_dialog)
@@ -195,7 +197,7 @@ class ProfilesView(ctk.CTkFrame):
                 password=password
             )
 
-            connection_service.connect(config)
+            connection_service.connect(config, profile_name=data["name"])
 
             logwatcher_service = LogWatcherService(connection_service.repository)
 
@@ -205,13 +207,14 @@ class ProfilesView(ctk.CTkFrame):
                 )
             )
 
-            if invalid_tables:
-                self.show_invalid_tables(invalid_tables)
-
             if not valid_tables:
                 self.show_error(
-                    "Nenhuma das tabelas informadas existe "
-                    "no banco de dados."
+                    "Nenhuma das tabelas informadas existe no banco de dados."
+                    + (
+                        "\n\nTabelas não encontradas:\n"
+                        + "\n".join(f"• {t}" for t in invalid_tables)
+                        if invalid_tables else ""
+                    )
                 )
                 return
 
@@ -220,15 +223,15 @@ class ProfilesView(ctk.CTkFrame):
                 server=data["server"],
                 database=data["database"],
                 username=data["username"],
-                tables=valid_tables
+                tables=valid_tables,
+                invalid_tables=invalid_tables,
             )
 
             self.load_profiles()
 
             if invalid_tables:
-                self.show_info(
-                    "Perfil criado.\n\n"
-                    "Somente as tabelas existentes foram salvas."
+                self.show_profile_summary(
+                    "Perfil criado.", valid_tables, "Tabelas salvas", invalid_tables
                 )
 
         except Exception as error:
@@ -275,6 +278,7 @@ class ProfilesView(ctk.CTkFrame):
             profile_name=data["name"],
             server=data["server"],
             database=data["database"],
+            message="Coloque a senha para validar as tabelas informadas.",
         )
 
         self.wait_window(password_dialog)
@@ -294,7 +298,7 @@ class ProfilesView(ctk.CTkFrame):
                 password=password
             )
 
-            connection_service.connect(config)
+            connection_service.connect(config, profile_name=data["name"])
 
             logwatcher_service = LogWatcherService(connection_service.repository)
 
@@ -304,15 +308,16 @@ class ProfilesView(ctk.CTkFrame):
                 )
             )
 
-            if invalid_tables:
-                self.show_invalid_tables(invalid_tables)
-
             if not valid_tables:
-                self.show_info(
-                    "Nenhuma das novas tabelas existe.\n\n"
+                self.show_error(
+                    "Nenhuma das novas tabelas existe no banco de dados. "
                     "As tabelas já cadastradas não foram alteradas."
+                    + (
+                        "\n\nTabelas não encontradas:\n"
+                        + "\n".join(f"• {t}" for t in invalid_tables)
+                        if invalid_tables else ""
+                    )
                 )
-
                 return
 
             self.profile_service.update_profile(
@@ -321,16 +326,15 @@ class ProfilesView(ctk.CTkFrame):
                 server=data["server"],
                 database=data["database"],
                 username=data["username"],
-                tables=valid_tables
+                tables=valid_tables,
+                invalid_tables=invalid_tables,
             )
 
             self.load_profiles()
 
             if invalid_tables:
-                self.show_info(
-                    "Perfil atualizado.\n\n"
-                    "As tabelas existentes foram mantidas "
-                    "e somente as novas tabelas válidas foram adicionadas."
+                self.show_profile_summary(
+                    "Perfil atualizado.", valid_tables, "Tabelas novas adicionadas", invalid_tables
                 )
 
         except Exception as error:
@@ -341,17 +345,6 @@ class ProfilesView(ctk.CTkFrame):
 
         finally:
             connection_service.disconnect()
-
-
-    def show_invalid_tables(self, tables):
-        text = (
-            "As seguintes tabelas não foram encontradas:\n\n"
-            + "\n".join(
-                f"• {table}"
-                for table in tables
-            )
-        )
-        self.show_info(text)
 
 
     def show_info(self, message):
@@ -378,6 +371,19 @@ class ProfilesView(ctk.CTkFrame):
             command=dialog.destroy
         )
         button.pack()
+
+    def show_profile_summary(self, intro, valid_tables, valid_label, invalid_tables):
+        lines = [intro]
+
+        if valid_tables:
+            lines.append(f"\n{valid_label}:")
+            lines.extend(f"• {table}" for table in valid_tables)
+
+        if invalid_tables:
+            lines.append("\nTabelas não encontradas (não foram salvas):")
+            lines.extend(f"• {table}" for table in invalid_tables)
+
+        self.show_info("\n".join(lines))
 
     # ==========================================================
     # EXCLUIR
@@ -524,7 +530,7 @@ class ProfileDialog(ctk.CTkToplevel):
         self.result = None
 
         self.title(title)
-        self.geometry("500x600")
+        self.geometry("500x640")
         self.resizable(False, False)
         self.configure(fg_color=Theme.BG_CONTENT)
 
@@ -571,6 +577,13 @@ class ProfileDialog(ctk.CTkToplevel):
             4,
             profile.username if profile else ""
         )
+        
+        self._entries = {
+            "name": self.name_entry,
+            "server": self.server_entry,
+            "database": self.database_entry,
+            "username": self.username_entry,
+        }
 
         # ==========================================================
         # TABELAS
@@ -601,12 +614,29 @@ class ProfileDialog(ctk.CTkToplevel):
 
             info_row = 8
             buttons_row = 9
+            
+            self.tables_entry = self._create_entry(
+                "Novas tabelas",
+                7,
+                ""
+            )
+            self._entries["tables"] = self.tables_entry
+
+            info_row = 8
+            error_row = 9
+            buttons_row = 10
 
         else:
-            self.tables_entry = self._create_entry("Tabelas monitoradas", 5, "")
+            self.tables_entry = self._create_entry(
+                "Tabelas monitoradas",
+                5,
+                ""
+            )
+            self._entries["tables"] = self.tables_entry
 
             info_row = 6
-            buttons_row = 7
+            error_row = 7
+            buttons_row = 8
 
         # ==========================================================
         # INFORMAÇÃO
@@ -618,8 +648,17 @@ class ProfileDialog(ctk.CTkToplevel):
             font=Theme.font(size=12),
             text_color=Theme.TEXT_MUTED,
         )
-
         self.info_label.grid(row=info_row, column=1, padx=(0, 30), pady=(0, 15), sticky="w")
+        
+        self.error_label = ctk.CTkLabel(
+            self,
+            text="",
+            font=Theme.font(size=12, weight="bold"),
+            text_color=Theme.DANGER,
+            wraplength=440,
+            justify="left",
+        )
+        self.error_label.grid(row=error_row, column=0, columnspan=2, padx=30, pady=(0, 5), sticky="w")
 
         # ==========================================================
         # BOTÕES
@@ -681,8 +720,23 @@ class ProfileDialog(ctk.CTkToplevel):
         entry.insert(0, value)
 
         return entry
+    
+    def _clear_field_errors(self):
+        self.error_label.configure(text="")
+
+        for entry in self._entries.values():
+            entry.configure(border_color=Theme.BORDER)
+
+    def _set_field_error(self, field_key, message):
+        self.error_label.configure(text=message)
+
+        entry = self._entries.get(field_key)
+        if entry is not None:
+            entry.configure(border_color=Theme.DANGER)
 
     def save(self):
+        self._clear_field_errors()
+
         name = self.name_entry.get().strip()
         server = self.server_entry.get().strip()
         database = self.database_entry.get().strip()
@@ -690,26 +744,30 @@ class ProfileDialog(ctk.CTkToplevel):
         tables_text = self.tables_entry.get().strip()
 
         if not name:
-            self.show_error("Informe o nome do perfil.")
+            self._set_field_error("name", "Informe o nome do perfil.")
             return
 
         if not server:
-            self.show_error("Informe o IP do Servidor.")
+            self._set_field_error("server", "Informe o IP do servidor.")
             return
 
         if not database:
-            self.show_error("Informe o banco de dados.")
+            self._set_field_error("database", "Informe o banco de dados.")
             return
 
         if not username:
-            self.show_error("Informe o usuário do banco.")
+            self._set_field_error("username", "Informe o usuário do banco.")
             return
 
-        tables = [
-            table.strip()
-            for table in tables_text.split(",")
-            if table.strip()
-        ]
+        try:
+            tables = TableParser.parse(tables_text)
+        except ValueError as error:
+            self._set_field_error(
+                "tables",
+                f"{error} — separe os nomes por vírgula (,), "
+                "usando apenas letras, números e underline (_)."
+            )
+            return
 
         self.result = {
             "name": name,
@@ -746,7 +804,7 @@ class ProfileDialog(ctk.CTkToplevel):
         button.pack()
 
 class PasswordDialog(ctk.CTkToplevel):
-    def __init__(self, master, profile_name=None, server=None, database=None):
+    def __init__(self, master, profile_name=None, server=None, database=None, message=None):
         super().__init__(master)
 
         self.password = None
@@ -759,9 +817,9 @@ class PasswordDialog(ctk.CTkToplevel):
         self.transient(master)
         self.grab_set()
 
-        self._create_widgets(profile_name, server, database)
+        self._create_widgets(profile_name, server, database, message)
 
-    def _create_widgets(self, profile_name, server, database):
+    def _create_widgets(self, profile_name, server, database, message):
         title = ctk.CTkLabel(
             self,
             text="Autenticação necessária",
@@ -780,8 +838,9 @@ class PasswordDialog(ctk.CTkToplevel):
 
         description = ctk.CTkLabel(
             self,
-            text="Digite a senha do usuário do banco para continuar.",
+            text=message or "Digite a senha do usuário do banco para conectar.",
             font=Theme.font(size=12), text_color=Theme.TEXT_MUTED,
+            wraplength=340, justify="center",
         )
         description.pack(pady=(0, 12))
 
