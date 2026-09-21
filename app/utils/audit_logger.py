@@ -2,10 +2,10 @@ import getpass
 from datetime import datetime
 from pathlib import Path
 
-import os, sys
+import sys
 
 if getattr(sys, "frozen", False):
-    LOG_DIR = Path(os.getenv("APPDATA")) / "LogWatcher" / "logs"
+    LOG_DIR = Path(sys.executable).resolve().parent / "logs"
 else:
     LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
 

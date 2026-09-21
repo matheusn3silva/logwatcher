@@ -8,10 +8,10 @@ from app.utils.audit_logger import AuditLogger
 
 class ConnectionProfileService:
     def __init__(self):
-        import os, sys
+        import sys
 
         if getattr(sys, "frozen", False):
-            self._data_dir = Path(os.getenv("APPDATA")) / "LogWatcher" / "data"
+            self._data_dir = Path(sys.executable).resolve().parent / "data"
         else:
             self._data_dir = Path("data")
 
