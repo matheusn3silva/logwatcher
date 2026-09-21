@@ -10,6 +10,7 @@ class ProfileDialog(ctk.CTkToplevel):
         super().__init__(master)
 
         self.result = None
+        self._profile = profile
 
         self.title(title)
         self.geometry("500x640")
@@ -235,6 +236,13 @@ class ProfileDialog(ctk.CTkToplevel):
                 "tables",
                 f"{error} — separe os nomes por vírgula (,), "
                 "usando apenas letras, números e underline (_)."
+            )
+            return
+        
+        if not tables and self._profile is None:
+            self._set_field_error(
+                "tables",
+                "Informe pelo menos uma tabela monitorada para criar o perfil."
             )
             return
 

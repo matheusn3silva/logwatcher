@@ -1,4 +1,6 @@
 import customtkinter as ctk
+from pathlib import Path
+import sys
 
 from app.views.gui.profile_views.profiles_view import ProfilesView
 from app.views.gui.dashboard_views.dashboard_view import DashboardView
@@ -13,6 +15,14 @@ class MainWindow(ctk.CTk):
         theme_module.apply()
 
         super().__init__()
+        
+        base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[3]))
+        icon = base / "assets" / "logo.ico"
+        if icon.exists():
+            try:
+                self.after(250, lambda: self.iconbitmap(str(icon)))
+            except Exception:
+                pass
 
         self.configure(fg_color=Theme.BG_APP)
 

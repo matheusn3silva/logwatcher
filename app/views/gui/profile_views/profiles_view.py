@@ -172,6 +172,12 @@ class ProfilesView(ctk.CTkFrame):
             return
 
         data = dialog.result
+        
+        if not data["tables"]:
+            self.show_error(
+                "Informe pelo menos uma tabela monitorada para criar o perfil."
+            )
+            return
 
         password_dialog = PasswordDialog(
             self,
@@ -352,43 +358,58 @@ class ProfilesView(ctk.CTkFrame):
             connection_service.disconnect()
 
 
-    def show_info(self, message):
+    def show_info(self, intro, sections=None):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Informação")
-        dialog.geometry("500x300")
+        dialog.geometry("500x420")          # cresceu de 300 pra 420 pra caber tudo
         dialog.resizable(False, False)
         dialog.configure(fg_color=Theme.BG_CONTENT)
 
         dialog.transient(self)
         dialog.grab_set()
 
-        label = ctk.CTkLabel(
-            dialog,
-            text=message,
-            wraplength=440,
-            justify="left"
+        icon_label = ctk.CTkLabel(
+            dialog, text="✓", font=Theme.font(size=24, weight="bold"),
+            text_color=Theme.SUCCESS, fg_color=Theme.SURFACE,
+            width=52, height=52, corner_radius=26,
         )
-        label.pack(padx=30, pady=40)
+        icon_label.pack(pady=(25, 10))
 
-        button = ctk.CTkButton(
-            dialog,
-            text="OK",
-            command=dialog.destroy
+        intro_label = ctk.CTkLabel(
+            dialog, text=intro, font=Theme.font(size=13), text_color=Theme.TEXT,
+            wraplength=440, justify="left"
         )
-        button.pack()
+        intro_label.pack(padx=30, pady=(0, 15))
+
+        sections = [(header, items) for header, items in (sections or []) if items]
+
+        if sections:
+            scroll = ctk.CTkScrollableFrame(dialog, height=180, fg_color=Theme.SURFACE)
+            scroll.pack(padx=30, pady=(0, 15), fill="x")
+
+            for header, items in sections:
+                header_label = ctk.CTkLabel(
+                    scroll, text=header, font=Theme.font(size=12, weight="bold"),
+                    text_color=Theme.TEXT_MUTED, anchor="w",
+                )
+                header_label.pack(fill="x", padx=10, pady=(8, 2))
+
+                for item in items:
+                    item_label = ctk.CTkLabel(
+                        scroll, text=f"• {item}", font=Theme.font(size=13),
+                        text_color=Theme.TEXT, anchor="w",
+                    )
+                    item_label.pack(fill="x", padx=20)
+
+        button = ctk.CTkButton(dialog, text="OK", command=dialog.destroy)
+        button.pack(pady=(0, 20))
 
     def show_profile_summary(self, intro, valid_tables, valid_label, invalid_tables):
-        lines = [intro]
-
-        if valid_tables:
-            lines.append(f"\n{valid_label}:")
-            lines.extend(f"• {table}" for table in valid_tables)
-
-        if invalid_tables:
-            lines.append("\nTabelas não encontradas (não foram salvas):")
-            lines.extend(f"• {table}" for table in invalid_tables)
-
-        self.show_info("\n".join(lines))
+        sections = [
+            (f"{valid_label}:", valid_tables),
+            ("Tabelas não encontradas (não foram salvas):", invalid_tables),
+        ]
+        self.show_info(intro, sections)
 
     # ==========================================================
     # EXCLUIR

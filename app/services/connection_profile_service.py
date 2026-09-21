@@ -7,9 +7,14 @@ from app.utils.audit_logger import AuditLogger
 
 
 class ConnectionProfileService:
-
     def __init__(self):
-        self._data_dir = Path("data")
+        import os, sys
+
+        if getattr(sys, "frozen", False):
+            self._data_dir = Path(os.getenv("APPDATA")) / "LogWatcher" / "data"
+        else:
+            self._data_dir = Path("data")
+
         self._file = self._data_dir / "connections.json"
 
         self._data_dir.mkdir(

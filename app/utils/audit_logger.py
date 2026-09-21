@@ -2,8 +2,12 @@ import getpass
 from datetime import datetime
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-LOG_DIR = BASE_DIR / "logs"
+import os, sys
+
+if getattr(sys, "frozen", False):
+    LOG_DIR = Path(os.getenv("APPDATA")) / "LogWatcher" / "logs"
+else:
+    LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
 
 
 class AuditLogger:

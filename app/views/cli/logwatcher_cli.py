@@ -7,7 +7,8 @@ from app.services.connection_profile_service import ConnectionProfileService
 from app.services.connection_service import ConnectionService
 from app.services.logwatcher_service import LogWatcherService
 from app.services.table_parser import TableParser
-
+from app.views.cli import ui
+import questionary
 
 class LogWatcherCLI:
 
@@ -33,37 +34,24 @@ class LogWatcherCLI:
     @classmethod
     def print_header(cls, title: str):
         cls.clear_screen()
-
-        print("=" * cls.LINE)
-        print(title)
-        print("=" * cls.LINE)
+        ui.title(title)
 
     @classmethod
     def print_error(cls, message: str):
-        print()
-        print("=" * cls.LINE)
-        print(f"ERRO: {message}")
-        print("=" * cls.LINE)
+        ui.error(message)
 
     @classmethod
     def print_success(cls, message: str):
-        print()
-        print("=" * cls.LINE)
-        print(f"SUCESSO: {message}")
-        print("=" * cls.LINE)
+        ui.success(message)
 
     @staticmethod
     def pause():
-        input("\nPressione ENTER para continuar...")
+        ui.pause()
 
     @staticmethod
     def ask_confirmation(message: str) -> bool:
-        print()
-        print(message)
-
-        confirmation = input("\nDigite SIM para confirmar: ").strip().upper()
-
-        return confirmation == "SIM"
+        ui.warning(message)
+        return ui.confirm("Confirmar a operação?", default=False)
 
     @staticmethod
     def build_config(
@@ -139,52 +127,45 @@ class LogWatcherCLI:
         while True:
             profiles = self.profile_service.load_profiles()
 
-            self.print_header("LogWatcher - Perfis de Conexão")
+            self.print_header("LogWatcher — Perfis de Conexão")
 
-            if profiles:
+            choices = [
+                ui.Choice(
+                    title=f"{p.name}  ({p.server} / {p.database})",
+                    value=("connect", p),
+                )
+                for p in profiles
+            ]
 
-                print("\nPerfis de conexão salvos")
-                print("-" * self.LINE)
-
-                for index, profile in enumerate(
-                    profiles,
-                    start=1
-                ):
-                    print(f"{index} - {profile.name}")
-
+            if choices:
+                choices.append(questionary.Separator("─" * 40))
             else:
-                print("\nNenhum perfil de conexão cadastrado.")
+                ui.warning("Nenhum perfil de conexão cadastrado.")
 
-            print()
-            print("N - Novo perfil")
-            print("E - Editar perfil")
-            print("R - Remover perfil")
-            print("S - Sair")
+            choices += [
+                ui.Choice("＋ Novo perfil",    value=("new", None)),
+                ui.Choice("✎ Editar perfil",   value=("edit", None)),
+                ui.Choice("🗑 Remover perfil",  value=("delete", None)),
+                ui.Choice("⏻ Sair",            value=("exit", None)),
+            ]
 
-            choice = input("\nEscolha: ").strip().upper()
+            answer = ui.select("Selecione um perfil ou uma ação:", choices)
 
-            if choice == "N":
-                self.create_profile()
-            elif choice == "E":
-                self.edit_profile(profiles)
-            elif choice == "R":
-                self.delete_profile(profiles)
-            elif choice == "S":
+            if answer is None:
                 return None
-            elif choice.isdigit():
-                index = int(choice) - 1
 
-                if 0 <= index < len(profiles):
-                    return profiles[index]
+            action, profile = answer
 
-                self.print_error("Perfil de conexão inválido.")
-
-                self.pause()
-
-            else:
-                self.print_error("Opção inválida.")
-
-                self.pause()
+            if action == "connect":
+                return profile
+            if action == "new":
+                self.create_profile()
+            elif action == "edit":
+                self.edit_profile(profiles)
+            elif action == "delete":
+                self.delete_profile(profiles)
+            elif action == "exit":
+                return None
 
     # ==========================================================
     # CRIAÇÃO DE PERFIL
@@ -197,7 +178,7 @@ class LogWatcherCLI:
         server = input("IP/Nome do servidor: ").strip()
         database = input("Nome do banco: ").strip()
         username = input("Usuário do banco: ").strip()
-        password = input("Senha do banco: ")
+        password = ui.password("Senha do banco:")
 
         tables_text = input(
             "\nTabelas monitoradas "
@@ -323,26 +304,14 @@ class LogWatcherCLI:
 
         self.print_header("Editar perfil de conexão")
 
-        for index, profile in enumerate(profiles, start=1):
-            print(f"{index} - {profile.name}")
+        profile = ui.select(
+            "Selecione o perfil a editar:",
+            [ui.Choice(p.name, value=p) for p in profiles]
+            + [questionary.Separator("─" * 40), ui.Choice("← Voltar", value=None)],
+        )
 
-        choice = input("\nEscolha o perfil: ").strip()
-
-        if not choice.isdigit():
-            self.print_error("Opção inválida.")
-
-            self.pause()
+        if profile is None:
             return
-
-        index = int(choice) - 1
-
-        if not 0 <= index < len(profiles):
-            self.print_error("Perfil de conexão inválido.")
-
-            self.pause()
-            return
-
-        profile = profiles[index]
 
         print(
             f"\nPerfil selecionado: "
@@ -395,11 +364,16 @@ class LogWatcherCLI:
             )
             self.pause()
             return
+        
+        if not new_tables:
+            self.print_error(
+                "Nenhuma tabela nova informada. "
+                "Cancelando a edição — nada foi alterado."
+            )
+            self.pause()
+            return
 
-        password = input(
-            "\nSenha do banco para "
-            "validar a conexão: "
-        )
+        password = ui.password(f"Senha para {username}:")
 
         connection_service = ConnectionService()
 
@@ -526,29 +500,14 @@ class LogWatcherCLI:
 
         self.print_header("Remover perfil de conexão")
 
-        for index, profile in enumerate(
-            profiles,
-            start=1
-        ):
-            print(f"{index} - {profile.name}")
+        profile = ui.select(
+            "Selecione o perfil a remover:",
+            [ui.Choice(p.name, value=p) for p in profiles]
+            + [questionary.Separator("─" * 40), ui.Choice("← Voltar", value=None)],
+        )
 
-        choice = input("\nEscolha o perfil: ").strip()
-
-        if not choice.isdigit():
-            self.print_error("Opção inválida.")
-
-            self.pause()
+        if profile is None:
             return
-
-        index = int(choice) - 1
-
-        if not 0 <= index < len(profiles):
-            self.print_error("Perfil de conexão inválido.")
-
-            self.pause()
-            return
-
-        profile = profiles[index]
 
         if not self.ask_confirmation(
             f"Remover o perfil "
@@ -580,10 +539,7 @@ class LogWatcherCLI:
     def connect_to_database(self):
         self.print_header("Conectando ao banco de dados")
 
-        password = input(
-            f"Senha para "
-            f"{self.selected_profile.username}: "
-        )
+        password = ui.password(f"Senha para {self.selected_profile.username}:")
 
         config = self.build_config(
             server=self.selected_profile.server,
@@ -669,38 +625,31 @@ class LogWatcherCLI:
         while True:
             self.print_header("LogWatcher")
 
-            print(
-                f"Perfil: "
-                f"{self.selected_profile.name}"
+            questionary.print(
+                f"Perfil: {self.selected_profile.name}   "
+                f"Banco: {self.selected_profile.database}",
+                style="fg:#6e7681",
             )
 
-            print(
-                f"Banco: "
-                f"{self.selected_profile.database}"
-            )
+            option = ui.select("O que deseja fazer?", [
+                ui.Choice("📊 Consultar Dashboard",          value="dashboard"),
+                ui.Choice("🧹 Limpar Tabela",                value="clean"),
+                ui.Choice("💾 Shrink do arquivo de Log",     value="shrink_log"),
+                ui.Choice("🗄 Shrink do arquivo de Dados",   value="shrink_data"),
+                questionary.Separator("─" * 40),
+                ui.Choice("⏏ Desconectar",                  value="exit"),
+            ])
 
-            print()
-            print("1 - Consultar Dashboard")
-            print("2 - Limpar Tabela")
-            print("3 - Shrink do arquivo de Log")
-            print("4 - Shrink do arquivo de Dados")
-            print("0 - Desconectar")
-
-            option = input("\nEscolha: ").strip()
-
-            if option == "1":
-                self.show_dashboard()
-            elif option == "2":
-                self.clean_table()
-            elif option == "3":
-                self.shrink_log()
-            elif option == "4":
-                self.shrink_data()
-            elif option == "0":
+            if option in (None, "exit"):
                 return
-            else:
-                self.print_error("Opção inválida.")
-                self.pause()
+            if option == "dashboard":
+                self.show_dashboard()
+            elif option == "clean":
+                self.clean_table()
+            elif option == "shrink_log":
+                self.shrink_log()
+            elif option == "shrink_data":
+                self.shrink_data()
 
     # ==========================================================
     # DASHBOARD
@@ -766,36 +715,34 @@ class LogWatcherCLI:
         else:
             print("Nenhum arquivo de log encontrado.")
 
-        print("\nTabelas Monitoradas")
+        print("\nArquivos de Dados (MDF/NDF)")
         print("-" * 70)
 
-        table_data = [
+        data_file_data = [
             [
-                table.name,
-                table.schema,
-                f"{table.rows:,}",
-                f"{table.total_mb:.2f}",
-                f"{table.used_mb:.2f}",
+                data_file.logical_name,
+                f"{data_file.size_mb:.2f}",
+                f"{data_file.used_mb:.2f}",
+                f"{data_file.free_mb:.2f}",
             ]
-            for table in self.summary.tables
+            for data_file in self.summary.data_files
         ]
 
-        if table_data:
+        if data_file_data:
             print(
                 tabulate(
-                    table_data,
+                    data_file_data,
                     headers=[
-                        "Tabela",
-                        "Schema",
-                        "Linhas",
-                        "Espaço MB",
+                        "Arquivo",
+                        "Tamanho MB",
                         "Usado MB",
+                        "Livre MB",
                     ],
                     tablefmt="grid",
                 )
             )
         else:
-            print("Nenhuma tabela encontrada.")
+            print("Nenhum arquivo de dados encontrado.")
 
         print("\nResumo Geral")
         print("-" * 70)
@@ -828,6 +775,16 @@ class LogWatcherCLI:
         print(
             f"Log utilizado       : "
             f"{self.summary.total_log_used_mb:.2f} MB"
+        )       
+        
+        print(                                   
+            f"Tamanho do MDF      : "             
+            f"{self.summary.total_data_size_mb:.2f} MB" 
+        )                                         
+
+        print(                                   
+            f"MDF utilizado       : "             
+            f"{self.summary.total_data_used_mb:.2f} MB"  
         )
 
         self.pause()
@@ -858,60 +815,43 @@ class LogWatcherCLI:
         try:
             self.print_header("Limpeza de Tabela")
 
-            print("Tabelas Monitoradas")
-            print("-" * self.LINE)
-
-            for index, table in enumerate(
-                self.summary.tables,
-                start=1
-            ):
-                print(
-                    f"{index} - "
-                    f"{table.schema.upper()}."
-                    f"{table.name.upper()}"
-                )
-
-            choice = input("\nEscolha: ").strip()
-
-            if not choice.isdigit():
-                self.print_error("Opção inválida.")
-                self.pause()
-                return
-
-            index = int(choice) - 1
-
-            if not 0 <= index < len(
-                self.summary.tables
-            ):
-
-                self.print_error("Tabela inválida.")
-                self.pause()
-                return
-
-            table = self.summary.tables[index]
-
-            print("\nModo de limpeza")
-
-            print(
-                "1 - TRUNCATE — "
-                "remove todos os registros"
+            table = ui.select(
+                "Selecione a tabela:",
+                [
+                    ui.Choice(
+                        f"{t.schema.upper()}.{t.name.upper()}  "
+                        f"({t.rows} linhas / {t.total_mb:.2f} MB)",
+                        value=t,
+                    )
+                    for t in self.summary.tables
+                ] + [
+                    questionary.Separator("─" * 40),
+                    ui.Choice("← Voltar", value=None),
+                ],
             )
 
-            print(
-                "2 - DELETE   — "
-                "remove os registros respeitando FKs"
+            if table is None:
+                return
+
+            index = self.summary.tables.index(table)
+
+            action = ui.select(
+                "Modo de limpeza:",
+                [
+                    ui.Choice(
+                        "TRUNCATE — remove todos os registros (rápido, ignora FKs)",
+                        value="TRUNCATE",
+                    ),
+                    ui.Choice(
+                        "DELETE   — remove respeitando FKs (mais lento, gera log)",
+                        value="DELETE",
+                    ),
+                    questionary.Separator("─" * 40),
+                    ui.Choice("← Voltar", value=None),
+                ],
             )
 
-            mode = input("\nEscolha: ").strip()
-
-            if mode == "1":
-                action = "TRUNCATE"
-            elif mode == "2":
-                action = "DELETE"
-            else:
-                self.print_error("Opção inválido.")
-
-                self.pause()
+            if action is None:
                 return
 
             table_name = (
@@ -990,23 +930,8 @@ class LogWatcherCLI:
                 f"{status.log_reuse_message}"
             )
 
-            print("\nArquivos de Log")
+            print("\nArquivos de Log (LDF)")
             print("-" * self.LINE)
-
-            for index, log in enumerate(
-                logs,
-                start=1
-            ):
-                print(
-                    f"{index} - "
-                    f"{log.logical_name} | "
-                    f"Reservado: "
-                    f"{log.size_mb:.2f} MB | "
-                    f"Usado: "
-                    f"{log.used_mb:.2f} MB | "
-                    f"Livre: "
-                    f"{log.free_mb:.2f} MB"
-                )
 
             if not logs:
                 self.print_error(
@@ -1016,22 +941,22 @@ class LogWatcherCLI:
                 self.pause()
                 return
 
-            choice = input("\nEscolha: ").strip()
+            log = ui.select(
+                "Selecione o arquivo de log:",
+                [
+                    ui.Choice(
+                        f"{l.logical_name}  "
+                        f"(Reservado: {l.size_mb:.2f} MB / Livre: {l.free_mb:.2f} MB)",
+                        value=l,
+                    )
+                    for l in logs
+                ] + [questionary.Separator("─" * 40), ui.Choice("← Voltar", value=None)],
+            )
 
-            if not choice.isdigit():
-
-                self.print_error("Opção inválida.")
-                self.pause()
+            if log is None:
                 return
 
-            index = int(choice) - 1
-
-            if not 0 <= index < len(logs):
-                self.print_error("Arquivo de log inválido.")
-                self.pause()
-                return
-
-            log = logs[index]
+            index = logs.index(log)
 
             print("\nATENÇÃO")
 
@@ -1156,21 +1081,22 @@ class LogWatcherCLI:
                 self.pause()
                 return
 
-            choice = input("\nEscolha: ").strip()
+            data_file = ui.select(
+                "Selecione o arquivo de dados:",
+                [
+                    ui.Choice(
+                        f"{d.logical_name}  "
+                        f"(Reservado: {d.size_mb:.2f} MB / Livre: {d.free_mb:.2f} MB)",
+                        value=d,
+                    )
+                    for d in data_files
+                ] + [questionary.Separator("─" * 40), ui.Choice("← Voltar", value=None)],
+            )
 
-            if not choice.isdigit():
-                self.print_error("Opção inválida.")
-                self.pause()
+            if data_file is None:
                 return
 
-            index = int(choice) - 1
-
-            if not 0 <= index < len(data_files):
-                self.print_error("Arquivo de dados inválido.")
-                self.pause()
-                return
-
-            data_file = data_files[index]
+            index = data_files.index(data_file)
 
             print("\nATENÇÃO")
 

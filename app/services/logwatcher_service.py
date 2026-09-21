@@ -21,9 +21,14 @@ class LogWatcherService:
         total_log_size = sum(log.size_mb for log in logs)
         total_log_used = sum(log.used_mb for log in logs)
 
+        data_files = self._repository.get_data_files()
+        total_data_size = sum(data_file.size_mb for data_file in data_files)
+        total_data_used = sum(data_file.used_mb for data_file in data_files)
+
         return DashboardSummary(
             tables=tables,
             logs=logs,
+            data_files=data_files,
 
             total_tables=len(tables),
             total_rows=total_rows,
@@ -32,7 +37,10 @@ class LogWatcherService:
             used_space_mb=used_space,
 
             total_log_size_mb=total_log_size,
-            total_log_used_mb=total_log_used
+            total_log_used_mb=total_log_used,
+
+            total_data_size_mb=total_data_size,
+            total_data_used_mb=total_data_used,
         )
         
     def validate_tables(self, tables_text: str):

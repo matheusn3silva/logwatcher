@@ -168,6 +168,9 @@ class LogRepository:
         self._connection.execute_dbcc(query)
         
     def validate_tables(self, table_names: list[str]) -> tuple[list[str], list[str]]:
+        if not table_names:
+            return [], []
+        
         conn = self._connection.connect()
         cursor = conn.cursor()
 
