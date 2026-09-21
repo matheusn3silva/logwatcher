@@ -251,11 +251,8 @@ class MaintenanceView(ctk.CTkFrame):
                 f"Essa operação remove todos os registros e não pode ser desfeita."
             ),
             hint=hint,
-            action=lambda: method(self.summary, index),
-            success_message=(
-                f"{action} executado com sucesso.\n\n"
-                f"Tabela: {table_name}"
-            ),
+            run=lambda: method(self.summary, index),
+            operation=action,
         )
 
     # ==========================================================
@@ -357,7 +354,7 @@ class MaintenanceView(ctk.CTkFrame):
     # DIÁLOGO — OPERAÇÃO DESTRUTIVA (TRUNCATE / DELETE)
     # ==========================================================
 
-    def _confirm_danger(self, title, table_name, description, hint, action, success_message):
+    def _confirm_danger(self, title, table_name, description, hint, run, operation):
         dialog = ctk.CTkToplevel(self)
         dialog.title(title)
         dialog.geometry("480x320")
@@ -400,10 +397,17 @@ class MaintenanceView(ctk.CTkFrame):
 
         def confirm():
             try:
-                action()
+                run()
                 dialog.destroy()
                 self.load()
-                self._show_info(success_message)
+
+                self._show_result(
+                    title=f"{operation} concluído",
+                    rows=[
+                        ("Operação", operation),
+                        ("Tabela", table_name),
+                    ],
+                )
 
             except Exception as error:
                 dialog.destroy()
@@ -465,8 +469,8 @@ class MaintenanceView(ctk.CTkFrame):
         impact_label = ctk.CTkLabel(
             dialog,
             text=(
-                f"Tamanho atual          : {file.size_mb:,.2f} MB\n"
-                f"Em uso                 : {file.used_mb:,.2f} MB\n"
+                f"Tamanho atual : {file.size_mb:,.2f} MB\n"
+                f"Em uso : {file.used_mb:,.2f} MB\n"
                 f"Estimativa recuperável : até {file.free_mb:,.2f} MB"
             ),
             font=Theme.font(size=12), text_color=Theme.TEXT, justify="left",
@@ -494,12 +498,22 @@ class MaintenanceView(ctk.CTkFrame):
                 dialog.destroy()
                 self.load()
 
-                self._show_info(
-                    f"SHRINK concluído.\n\n"
-                    f"Arquivo    : {result.logical_name}\n"
-                    f"Antes      : {result.before_mb:.2f} MB\n"
-                    f"Depois     : {result.after_mb:.2f} MB\n"
-                    f"Recuperado : {result.recovered_mb:.2f} MB"
+                footer = None
+                if result.recovered_mb <= 0:
+                    footer = (
+                        "O arquivo já estava no menor tamanho possível — "
+                        "nenhum espaço foi recuperado."
+                    )
+
+                self._show_result(
+                    title="SHRINK concluído",
+                    rows=[
+                        ("Arquivo", result.logical_name),
+                        ("Antes", f"{result.before_mb:.2f} MB"),
+                        ("Depois", f"{result.after_mb:.2f} MB"),
+                        ("Recuperado", f"{result.recovered_mb:.2f} MB"),
+                    ],
+                    footer=footer,
                 )
 
             except Exception as error:
@@ -546,16 +560,82 @@ class MaintenanceView(ctk.CTkFrame):
     def _show_error(self, message):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Erro")
-        dialog.geometry("420x220")
+        dialog.geometry("420x260")
         dialog.resizable(False, False)
         dialog.configure(fg_color=Theme.BG_CONTENT)
 
         dialog.transient(self)
         dialog.grab_set()
 
-        ctk.CTkLabel(
-            dialog, text=message, text_color=Theme.DANGER,
-            font=Theme.font(size=13), wraplength=360, justify="left",
-        ).pack(padx=30, pady=(30, 15))
+        icon_label = ctk.CTkLabel(
+            dialog, text="✕",
+            font=Theme.font(size=24, weight="bold"),
+            text_color=Theme.DANGER,
+            fg_color=Theme.SURFACE,
+            width=52, height=52, corner_radius=26,
+        )
+        icon_label.pack(pady=(25, 10))
 
-        ctk.CTkButton(dialog, text="OK", command=dialog.destroy).pack(pady=(0, 20))
+        ctk.CTkLabel(
+            dialog, text=message, text_color=Theme.TEXT,
+            font=Theme.font(size=13), wraplength=360, justify="left",
+        ).pack(padx=30, pady=(0, 15))
+
+        ctk.CTkButton(
+            dialog, text="OK",
+            fg_color=Theme.DANGER, hover_color=Theme.DANGER_HOVER,
+            command=dialog.destroy,
+        ).pack(pady=(0, 20))
+        
+    def _show_result(self, title, rows, footer=None):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Resultado")
+        dialog.geometry(f"420x{220 + len(rows) * 26}")
+        dialog.resizable(False, False)
+        dialog.configure(fg_color=Theme.BG_CONTENT)
+
+        dialog.transient(self)
+        dialog.grab_set()
+
+        icon_label = ctk.CTkLabel(
+            dialog, text="✓",
+            font=Theme.font(size=28, weight="bold"),
+            text_color=Theme.SUCCESS,
+            fg_color=Theme.SURFACE,
+            width=52, height=52, corner_radius=26,
+        )
+        icon_label.pack(pady=(25, 10))
+
+        ctk.CTkLabel(
+            dialog, text=title,
+            font=Theme.font(size=16, weight="bold"), text_color=Theme.TEXT,
+        ).pack(pady=(0, 15))
+
+        rows_frame = ctk.CTkFrame(dialog, fg_color=Theme.SURFACE, corner_radius=8)
+        rows_frame.pack(padx=30, pady=(0, 10), fill="x")
+        rows_frame.grid_columnconfigure(0, weight=0)
+        rows_frame.grid_columnconfigure(1, weight=1)
+
+        for i, (label, value) in enumerate(rows):
+            ctk.CTkLabel(
+                rows_frame, text=label,
+                font=Theme.font(size=12), text_color=Theme.TEXT_MUTED,
+            ).grid(row=i, column=0, sticky="w", padx=(14, 10), pady=6)
+
+            ctk.CTkLabel(
+                rows_frame, text=str(value),
+                font=Theme.font(size=12, weight="bold"), text_color=Theme.TEXT,
+            ).grid(row=i, column=1, sticky="e", padx=(0, 14), pady=6)
+
+        if footer:
+            ctk.CTkLabel(
+                dialog, text=footer,
+                font=Theme.font(size=11), text_color=Theme.TEXT_MUTED,
+                wraplength=360, justify="left",
+            ).pack(padx=30, pady=(0, 10), anchor="w")
+
+        ctk.CTkButton(
+            dialog, text="OK",
+            fg_color=Theme.ACCENT, hover_color=Theme.ACCENT_HOVER,
+            command=dialog.destroy,
+        ).pack(pady=(5, 20))

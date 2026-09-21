@@ -194,13 +194,9 @@ class LogWatcherCLI:
         self.print_header("Novo perfil de conexão")
 
         name = input("Nome do perfil: ").strip()
-
         server = input("IP/Nome do servidor: ").strip()
-
         database = input("Nome do banco: ").strip()
-
         username = input("Usuário do banco: ").strip()
-
         password = input("Senha do banco: ")
 
         tables_text = input(
@@ -294,9 +290,12 @@ class LogWatcherCLI:
             )
 
             self.print_success(
-                "Perfil de conexão criado "
-                "com sucesso."
+                "Perfil de conexão criado com sucesso."
             )
+
+            print("\nTabelas monitoradas:")
+            for table in valid_tables:
+                print(f"  • {table}")
 
             self.pause()
 
@@ -497,6 +496,12 @@ class LogWatcherCLI:
                     "foi adicionada."
                 )
 
+            if invalid_tables:
+                print("\nTabelas não encontradas (não foram salvas):")
+
+                for table in invalid_tables:
+                    print(f"- {table}")
+
             self.pause()
 
         except Exception as error:
@@ -596,7 +601,12 @@ class LogWatcherCLI:
 
             version = (self.connection_service.connect(config, profile_name=self.selected_profile.name))
 
-            self.logwatcher_service = (LogWatcherService(self.connection_service.repository))
+            self.logwatcher_service = (
+                LogWatcherService(
+                    self.connection_service.repository,
+                    profile_name=self.selected_profile.name,
+                )
+            )
 
             self.print_success(
                 "Conexão estabelecida "

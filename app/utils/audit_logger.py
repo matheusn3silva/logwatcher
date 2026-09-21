@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-LOG_FILE = BASE_DIR / "logs" / "logwatcher_audit.log"
+LOG_DIR = BASE_DIR / "logs"
 
 
 class AuditLogger:
@@ -15,6 +15,12 @@ class AuditLogger:
             return "desconhecido"
 
     @staticmethod
+    def _log_file() -> Path:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        today = datetime.now().strftime("%Y-%m-%d")
+        return LOG_DIR / f"logwatcher_audit_{today}.log"
+
+    @staticmethod
     def log(
         database: str,
         username: str,
@@ -23,7 +29,7 @@ class AuditLogger:
         action: str = "-",
         status: str = "SUCESSO",
     ) -> None:
-        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        log_file = AuditLogger._log_file()
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         windows_user = AuditLogger._windows_user()
@@ -35,5 +41,5 @@ class AuditLogger:
             f"Ação={action} | Detalhe={message}\n"
         )
 
-        with LOG_FILE.open("a", encoding="utf-8") as file:
+        with log_file.open("a", encoding="utf-8") as file:
             file.write(line)

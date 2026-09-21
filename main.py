@@ -1,12 +1,9 @@
 import customtkinter as ctk
 
-from app.interfaces.gui.login_view import LoginView
+from app.views.gui.main_window import MainWindow 
 
-def main():
-    ctk.set_appearance_mode("dark")
-    ctk.set_default_color_theme("blue")
-    
-    app = LoginView()
+def main():    
+    app = MainWindow()
     app.mainloop()
     
 if __name__ == "__main__":

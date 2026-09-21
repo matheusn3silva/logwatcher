@@ -1,14 +1,14 @@
 import customtkinter as ctk
 
-from app.views.gui.profiles_view import ProfilesView
-from app.views.gui.dashboard_view import DashboardView
-from app.views.gui.maintenance_view import MaintenanceView
+from app.views.gui.profile_views.profiles_view import ProfilesView
+from app.views.gui.dashboard_views.dashboard_view import DashboardView
+from app.views.gui.maintenance_views.maintenance_view import MaintenanceView
 from app.views.gui.theme import Theme
 from app.views.gui import theme as theme_module
 from app.services.connection_manager import ConnectionManager
+from app.views.gui.log_views.logs_view import LogsView
 
 class MainWindow(ctk.CTk):
-
     def __init__(self):
         theme_module.apply()
 
@@ -204,7 +204,7 @@ class MainWindow(ctk.CTk):
 
     def _create_content_navigation(self):
         self.navigation = ctk.CTkFrame(self.content, fg_color="transparent")
-        self.navigation.grid_columnconfigure(2, weight=1)
+        self.navigation.grid_columnconfigure(3, weight=1)
 
         self.dashboard_button = ctk.CTkButton(
             self.navigation, text="Dashboard", width=130,
@@ -218,14 +218,21 @@ class MainWindow(ctk.CTk):
             fg_color=Theme.SURFACE, hover_color=Theme.BORDER, text_color=Theme.TEXT,
             command=self.show_maintenance
         )
-        self.maintenance_button.grid(row=0, column=1)
+        self.maintenance_button.grid(row=0, column=1, padx=(0, 10))
+
+        self.logs_button = ctk.CTkButton(
+            self.navigation, text="Logs", width=130,
+            fg_color=Theme.SURFACE, hover_color=Theme.BORDER, text_color=Theme.TEXT,
+            command=self.show_logs
+        )
+        self.logs_button.grid(row=0, column=2)
 
     def _set_nav_active(self, button):
-        for btn in (self.dashboard_button, self.maintenance_button):
+        for btn in (self.dashboard_button, self.maintenance_button, self.logs_button):
             is_active = btn is button
             btn.configure(
                 fg_color=Theme.ACCENT if is_active else Theme.SURFACE,
-                    hover_color=Theme.ACCENT_HOVER if is_active else Theme.BORDER,
+                hover_color=Theme.ACCENT_HOVER if is_active else Theme.BORDER,
             )
 
     # ==========================================================
@@ -307,6 +314,13 @@ class MainWindow(ctk.CTk):
         )
 
         self.current_view.grid(row=1, column=0, sticky="nsew")
+        
+    def show_logs(self):
+        self._clear_content()
+        self._set_nav_active(self.logs_button)
+
+        self.current_view = LogsView(self.content)
+        self.current_view.grid(row=1, column=0, sticky="nsew")
 
     # ==========================================================
     # PERFIL ATIVO
@@ -320,17 +334,3 @@ class MainWindow(ctk.CTk):
         if self.active_profile and self.active_profile.id == profile.id:
             self.active_profile = None
             self._refresh_content()
-
-
-# ==============================================================
-# EXECUÇÃO
-# ==============================================================
-
-def run():
-
-    app = MainWindow()
-    app.mainloop()
-
-
-if __name__ == "__main__":
-    run()
