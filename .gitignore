@@ -7,3 +7,6 @@ logs/
 .pytest_cache
 connections.json
 dist/
+build/
+.iss
+logwatcher.spec
