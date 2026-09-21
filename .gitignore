@@ -8,5 +8,5 @@ logs/
 connections.json
 dist/
 build/
-.iss
+installer.iss
 logwatcher.spec
