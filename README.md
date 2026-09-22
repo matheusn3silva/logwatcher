@@ -16,8 +16,12 @@ O **LogWatcher** nasceu para facilitar o dia a dia de analistas de suporte e adm
 - 📊 Consumo de tabelas de log e auditoria
 - 💾 Tamanho e utilização do arquivo de log (LDF)
 - 🧹 Operações de manutenção (`TRUNCATE`, `DELETE`, `DBCC SHRINKFILE`)
+- 🧾 Log de auditoria de todas as operações executadas
 
-Hoje a ferramenta é usada por uma interface de terminal (**CLI**). A próxima etapa é uma interface gráfica em **CustomTkinter**, reaproveitando toda a lógica de negócio já implementada — as duas interfaces vão conviver sobre o mesmo código de domínio.
+A ferramenta hoje conta com **duas interfaces completas e independentes**, que compartilham toda a lógica de negócio:
+
+- **CLI** — interface de terminal colorida, com navegação por setas
+- **GUI** — interface gráfica em **CustomTkinter**, com tema inspirado no **Dracula**
 
 > ⚠️ **Atenção:** o LogWatcher executa comandos destrutivos e irreversíveis no banco. Use sempre com um usuário de permissões controladas e valide o ambiente (produção x homologação) antes de confirmar qualquer operação.
 
@@ -33,27 +37,41 @@ Hoje a ferramenta é usada por uma interface de terminal (**CLI**). A próxima e
 | **Status do log** | `Recovery Model` e `Log Reuse Wait` |
 | **Manutenção** | `TRUNCATE TABLE`, `DELETE` e `DBCC SHRINKFILE` (automático) |
 | **Segurança** | Confirmação obrigatória antes de operações destrutivas |
+| **Auditoria** | Registro em arquivo de log diário: usuário SQL, usuário do Windows, perfil, ação e status de cada operação |
+| **CLI** | Menus navegáveis por setas e saída colorida (via `questionary`) |
+| **GUI** | Interface gráfica completa (dashboard, perfis, logs e manutenção) com tema Dracula |
 
 ---
 
 ## 🏗️ Arquitetura
 
-O projeto segue uma organização em camadas, favorecendo a separação de responsabilidades e a manutenção:
+O projeto segue uma organização em camadas, favorecendo a separação de responsabilidades e a manutenção. A lógica de domínio é 100% compartilhada entre CLI e GUI — apenas a camada `views` muda:
 
 ```text
 logwatcher/
 ├── app/
-│   ├── config/         # Configurações de conexão
-│   ├── models/         # Entidades de domínio (LogTable, LogFile, ConnectionProfile...)
-│   ├── repositories/   # Acesso ao SQL Server
-│   ├── services/       # Regras de negócio
+│   ├── config/          # Configurações de conexão
+│   ├── controllers/     # Orquestração entre views e services
+│   ├── models/          # Entidades de domínio (ConnectionProfile, LogTable,
+│   │                     LogFile, DataFile, DatabaseStatus, DashboardSummary,
+│   │                     ShrinkResult...)
+│   ├── repositories/    # Acesso ao SQL Server
+│   ├── services/        # Regras de negócio (conexão, perfis, logwatcher, parser)
+│   ├── utils/           # Utilitários (ex.: log de auditoria)
 │   └── views/
-│       └── cli/        # Interface via terminal
+│       ├── cli/          # Interface via terminal (colorida, navegação por setas)
+│       └── gui/           # Interface gráfica (CustomTkinter)
+│           ├── dashboard_views/
+│           ├── log_views/
+│           ├── maintenance_views/
+│           └── profile_views/
+├── assets/               # Ícones e logo do app (.ico, .png, .svg)
 ├── data/
-│   └── connections.json
-├── tests/
-│   ├── test_logwatcher_cli.py
-│   └── test_profiles.py
+│   └── connections.json  # Perfis de conexão salvos
+├── logs/
+│   └── logwatcher_audit_AAAA-MM-DD.log  # Log de auditoria diário
+├── main.py               # Entrypoint da GUI
+├── main_cli.py            # Entrypoint da CLI
 ├── requirements.txt
 └── README.md
 ```
@@ -61,11 +79,12 @@ logwatcher/
 | Camada | Responsabilidade |
 | --- | --- |
 | **Config** | Parâmetros e configurações de conexão |
-| **Models** | Objetos de domínio (`LogTable`, `LogFile`, `ConnectionProfile`...) |
+| **Controllers** | Ponte entre as views e os services |
+| **Models** | Objetos de domínio |
 | **Repositories** | Acesso e queries ao SQL Server |
 | **Services** | Regras de negócio e orquestração das operações |
-| **Views** | Interfaces de uso da aplicação (CLI e, futuramente, GUI) |
-| **Tests** | Scripts de validação usados durante o desenvolvimento |
+| **Utils** | Funções de apoio (ex.: `AuditLogger`) |
+| **Views** | Interfaces de uso da aplicação (CLI e GUI) |
 
 > A pasta `venv/` é local e não deve ser versionada — mantenha-a no `.gitignore`.
 
@@ -77,7 +96,6 @@ logwatcher/
 
 - [Python 3.13+](https://www.python.org/downloads/)
 - SQL Server (local ou remoto)
-- Driver ODBC para SQL Server instalado na máquina
 - Git (opcional)
 
 ### 1. Clonar o repositório
@@ -109,13 +127,19 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Executar a CLI
+### 4. Executar
+
+**GUI (interface gráfica):**
 
 ```bash
-python -m app.views.cli.logwatcher_cli
+python main.py
 ```
 
-O arquivo `tests/test_logwatcher_cli.py` é destinado apenas aos testes das funcionalidades da CLI e não serve mais como ponto de entrada da aplicação.
+**CLI (terminal):**
+
+```bash
+python main_cli.py
+```
 
 ---
 
@@ -131,26 +155,32 @@ Os perfis ficam em `data/connections.json`. Cada perfil armazena:
 
 > 🔒 **Segurança:** a senha **não** é armazenada. Ela é solicitada a cada nova conexão.
 
+## 🧾 Log de auditoria
+
+Toda operação relevante (especialmente as destrutivas) é registrada em `logs/logwatcher_audit_AAAA-MM-DD.log`, com timestamp, status, perfil utilizado, banco, usuário SQL, usuário do Windows e detalhe da ação — garantindo rastreabilidade de quem fez o quê.
+
 ---
 
 ## 🛠️ Tecnologias utilizadas
 
 - **Python 3.13** e Programação Orientada a Objetos
 - **SQL Server**
+- [`mssql_python`](https://pypi.org/project/mssql-python/) — driver de conexão com o SQL Server
+- [`customtkinter`](https://pypi.org/project/customtkinter/) — interface gráfica
+- [`questionary`](https://pypi.org/project/questionary/) — menus interativos e coloridos na CLI
 - [`tabulate`](https://pypi.org/project/tabulate/) — formatação de tabelas no terminal
 - `pathlib` — manipulação de caminhos
 - `json` — persistência dos perfis
 - `dataclasses` — modelagem dos objetos de domínio
-- **CustomTkinter** — interface gráfica prevista para a próxima versão
 
 ---
 
 ## 📋 Roadmap
 
-### ✅ Concluído (CLI)
+### ✅ Concluído
 
 - [x] Conexão com SQL Server
-- [x] Dashboard via terminal
+- [x] Dashboard (CLI e GUI)
 - [x] Consulta de tabelas monitoradas
 - [x] Consulta do arquivo de log
 - [x] Status do log
@@ -158,14 +188,15 @@ Os perfis ficam em `data/connections.json`. Cada perfil armazena:
 - [x] `DELETE`
 - [x] `SHRINK` automático
 - [x] Perfis salvos em JSON
+- [x] Log de auditoria das operações
+- [x] Interface gráfica com CustomTkinter (tema Dracula)
+- [x] CLI colorida com navegação por setas
+- [x] Logo e ícone do app
 
 ### 🔜 Próxima versão
 
-- [ ] Interface gráfica com CustomTkinter
-- [ ] Dashboard visual
-- [ ] Gerenciamento visual de perfis
-- [ ] Modais de confirmação
-- [ ] Atualização da interface sem reiniciar a aplicação
+- [ ] Refino visual dos diálogos de sucesso/erro da GUI (com scroll para muitas tabelas)
+- [ ] Instaladores para distribuição (Windows em primeiro lugar)
 
 ---
 
@@ -176,8 +207,9 @@ Projeto desenvolvido como estudo prático de:
 - Arquitetura em camadas
 - Programação Orientada a Objetos em Python
 - Integração com SQL Server
-- Desenvolvimento de aplicações desktop
+- Desenvolvimento de aplicações desktop (CLI e GUI)
 - Organização de código e versionamento com Git
+- Empacotamento e distribuição de aplicações Python
 
 ---
 
