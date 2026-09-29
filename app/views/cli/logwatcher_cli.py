@@ -743,6 +743,31 @@ class LogWatcherCLI:
             )
         else:
             print("Nenhum arquivo de dados encontrado.")
+            
+        print("\nTabelas Monitoradas")
+        print("-" * 70)
+        table_data = [
+            [
+                f"{t.schema}.{t.name}",
+                f"{t.rows:,}",
+                f"{t.total_mb:.2f}",
+            ]
+            for t in self.summary.tables
+        ]
+        if table_data:
+            print(
+                tabulate(
+                    table_data,
+                    headers=[
+                        "Tabela",
+                        "Linhas",
+                        "Reservado (MB)",
+                    ],
+                    tablefmt="grid",
+                )
+            )
+        else:
+            print("Nenhuma tabela monitorada encontrada.")
 
         print("\nResumo Geral")
         print("-" * 70)
