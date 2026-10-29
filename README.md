@@ -14,7 +14,7 @@
 
 A forma mais simples de usar o LogWatcher no Windows é baixando o instalador já pronto, sem precisar instalar Python ou dependências:
 
-👉 **[Baixar a última versão](https://github.com/mathuesn3silva/logwatcher/releases/latest)**
+👉 **[Baixar a última versão](https://github.com/matheusn3silva/logwatcher/releases/latest)**
 
 O instalador (`LogWatcher-Setup-X.X.exe`) cria atalhos para a GUI e para a CLI, e não exige privilégios de administrador por padrão.
 
