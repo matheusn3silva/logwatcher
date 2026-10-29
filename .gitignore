@@ -6,3 +6,5 @@ logs/
 .vscode/
 .pytest_cache
 connections.json
+dist/
+build/

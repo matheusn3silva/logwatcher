@@ -29,6 +29,14 @@ class SQLServerConnection:
             self._connection.close()
             self._connection = None
 
+    @property
+    def database(self) -> str:
+        return self._config.database
+    
+    @property
+    def username(self) -> str:
+        return self._config.username
+
     def test_connection(self) -> str:
         conn = self.connect()
         

@@ -6,7 +6,9 @@ from app.config.database_config import DatabaseConfig
 from app.services.connection_profile_service import ConnectionProfileService
 from app.services.connection_service import ConnectionService
 from app.services.logwatcher_service import LogWatcherService
-
+from app.services.table_parser import TableParser
+from app.views.cli import ui
+import questionary
 
 class LogWatcherCLI:
 
@@ -32,41 +34,24 @@ class LogWatcherCLI:
     @classmethod
     def print_header(cls, title: str):
         cls.clear_screen()
-
-        print("=" * cls.LINE)
-        print(title)
-        print("=" * cls.LINE)
+        ui.title(title)
 
     @classmethod
     def print_error(cls, message: str):
-        print()
-        print("=" * cls.LINE)
-        print(f"ERRO: {message}")
-        print("=" * cls.LINE)
+        ui.error(message)
 
     @classmethod
     def print_success(cls, message: str):
-        print()
-        print("=" * cls.LINE)
-        print(f"SUCESSO: {message}")
-        print("=" * cls.LINE)
+        ui.success(message)
 
     @staticmethod
     def pause():
-        input(
-            "\nPressione ENTER para continuar..."
-        )
+        ui.pause()
 
     @staticmethod
     def ask_confirmation(message: str) -> bool:
-        print()
-        print(message)
-
-        confirmation = input(
-            "\nDigite SIM para confirmar: "
-        ).strip().upper()
-
-        return confirmation == "SIM"
+        ui.warning(message)
+        return ui.confirm("Confirmar a operação?", default=False)
 
     @staticmethod
     def build_config(
@@ -114,7 +99,6 @@ class LogWatcherCLI:
         try:
 
             while True:
-
                 profile = self.profile_menu()
 
                 if profile is None:
@@ -126,15 +110,11 @@ class LogWatcherCLI:
                     continue
 
                 try:
-
                     self.main_menu()
-
                 finally:
-
                     self.disconnect()
 
         except KeyboardInterrupt:
-
             print("\n\nAplicação encerrada.")
 
             self.disconnect()
@@ -144,110 +124,61 @@ class LogWatcherCLI:
     # ==========================================================
 
     def profile_menu(self):
-
         while True:
-
             profiles = self.profile_service.load_profiles()
 
-            self.print_header(
-                "LogWatcher - Perfis de Conexão"
-            )
+            self.print_header("LogWatcher — Perfis de Conexão")
 
-            if profiles:
-
-                print("\nPerfis de conexão salvos")
-                print("-" * self.LINE)
-
-                for index, profile in enumerate(
-                    profiles,
-                    start=1
-                ):
-                    print(
-                        f"{index} - {profile.name}"
-                    )
-
-            else:
-
-                print(
-                    "\nNenhum perfil de conexão cadastrado."
+            choices = [
+                ui.Choice(
+                    title=f"{p.name}  ({p.server} / {p.database})",
+                    value=("connect", p),
                 )
+                for p in profiles
+            ]
 
-            print()
-            print("N - Novo perfil")
-            print("E - Editar perfil")
-            print("R - Remover perfil")
-            print("S - Sair")
+            if choices:
+                choices.append(questionary.Separator("─" * 40))
+            else:
+                ui.warning("Nenhum perfil de conexão cadastrado.")
 
-            choice = input(
-                "\nEscolha: "
-            ).strip().upper()
+            choices += [
+                ui.Choice("＋ Novo perfil",    value=("new", None)),
+                ui.Choice("✎ Editar perfil",   value=("edit", None)),
+                ui.Choice("🗑 Remover perfil",  value=("delete", None)),
+                ui.Choice("⏻ Sair",            value=("exit", None)),
+            ]
 
-            if choice == "N":
+            answer = ui.select("Selecione um perfil ou uma ação:", choices)
 
-                self.create_profile()
-
-            elif choice == "E":
-
-                self.edit_profile(profiles)
-
-            elif choice == "R":
-
-                self.delete_profile(profiles)
-
-            elif choice == "S":
-
+            if answer is None:
                 return None
 
-            elif choice.isdigit():
+            action, profile = answer
 
-                index = int(choice) - 1
-
-                if 0 <= index < len(profiles):
-                    return profiles[index]
-
-                self.print_error(
-                    "Perfil de conexão inválido."
-                )
-
-                self.pause()
-
-            else:
-
-                self.print_error(
-                    "Opção inválida."
-                )
-
-                self.pause()
+            if action == "connect":
+                return profile
+            if action == "new":
+                self.create_profile()
+            elif action == "edit":
+                self.edit_profile(profiles)
+            elif action == "delete":
+                self.delete_profile(profiles)
+            elif action == "exit":
+                return None
 
     # ==========================================================
     # CRIAÇÃO DE PERFIL
     # ==========================================================
 
     def create_profile(self):
+        self.print_header("Novo perfil de conexão")
 
-        self.print_header(
-            "Novo perfil de conexão"
-        )
-
-        name = input(
-            "Nome do perfil: "
-        ).strip()
-
-        server = input(
-            "IP/Nome do servidor: "
-        ).strip()
-
-        database = input(
-            "Nome do banco: "
-        ).strip()
-
-        username = input(
-            "Usuário do banco: "
-        ).strip()
-
-        password = input(
-            "Senha do banco: "
-        )
+        name = input("Nome do perfil: ").strip()
+        server = input("IP/Nome do servidor: ").strip()
+        database = input("Nome do banco: ").strip()
+        username = input("Usuário do banco: ").strip()
+        password = ui.password("Senha do banco:")
 
         tables_text = input(
             "\nTabelas monitoradas "
@@ -255,58 +186,48 @@ class LogWatcherCLI:
         ).strip()
 
         if not name:
-
-            self.print_error(
-                "O nome do perfil é obrigatório."
-            )
+            self.print_error("O nome do perfil é obrigatório.")
 
             self.pause()
             return
 
         if not server:
-
-            self.print_error(
-                "O servidor é obrigatório."
-            )
+            self.print_error("O servidor é obrigatório." )
 
             self.pause()
             return
 
         if not database:
-
-            self.print_error(
-                "O banco de dados é obrigatório."
-            )
+            self.print_error("O banco de dados é obrigatório.")
 
             self.pause()
             return
 
         if not username:
-
-            self.print_error(
-                "O usuário é obrigatório."
-            )
+            self.print_error("O usuário é obrigatório.")
 
             self.pause()
             return
 
-        tables = self._parse_tables(
-            tables_text
-        )
+        try:
+            tables = TableParser.parse(tables_text)
+        except ValueError as error:
+            self.print_error(
+                f"{error}\n"
+                "Verifique se os nomes estão separados por vírgula (,) "
+                "e contêm apenas letras, números e underline (_)."
+            )
+            self.pause()
+            return
 
         if not tables:
-
-            self.print_error(
-                "Informe pelo menos uma tabela."
-            )
-
+            self.print_error("Informe pelo menos uma tabela.")
             self.pause()
             return
 
         connection_service = ConnectionService()
 
         try:
-
             config = self.build_config(
                 server,
                 database,
@@ -316,17 +237,11 @@ class LogWatcherCLI:
 
             print("\nValidando conexão...")
 
-            connection_service.connect(
-                config
-            )
+            connection_service.connect(config, profile_name=name)
 
-            logwatcher_service = LogWatcherService(
-                connection_service.repository
-            )
+            logwatcher_service = LogWatcherService(connection_service.repository)
 
-            print(
-                "Validando tabelas..."
-            )
+            print("Validando tabelas...")
 
             valid_tables, invalid_tables = (
                 logwatcher_service.validate_tables(
@@ -335,13 +250,9 @@ class LogWatcherCLI:
             )
 
             if invalid_tables:
-
-                self._show_invalid_tables(
-                    invalid_tables
-                )
+                self._show_invalid_tables(invalid_tables)
 
             if not valid_tables:
-
                 self.print_error(
                     "Nenhuma das tabelas "
                     "informadas é válida."
@@ -356,17 +267,20 @@ class LogWatcherCLI:
                 database=database,
                 username=username,
                 tables=valid_tables,
+                invalid_tables=invalid_tables,
             )
 
             self.print_success(
-                "Perfil de conexão criado "
-                "com sucesso."
+                "Perfil de conexão criado com sucesso."
             )
+
+            print("\nTabelas monitoradas:")
+            for table in valid_tables:
+                print(f"  • {table}")
 
             self.pause()
 
         except Exception as error:
-
             self.print_error(
                 f"Não foi possível criar o perfil.\n"
                 f"Motivo: {error}"
@@ -375,7 +289,6 @@ class LogWatcherCLI:
             self.pause()
 
         finally:
-
             connection_service.disconnect()
 
     # ==========================================================
@@ -383,53 +296,22 @@ class LogWatcherCLI:
     # ==========================================================
 
     def edit_profile(self, profiles):
-
         if not profiles:
-
-            self.print_error(
-                "Nenhum perfil de conexão cadastrado."
-            )
+            self.print_error("Nenhum perfil de conexão cadastrado.")
 
             self.pause()
             return
 
-        self.print_header(
-            "Editar perfil de conexão"
+        self.print_header("Editar perfil de conexão")
+
+        profile = ui.select(
+            "Selecione o perfil a editar:",
+            [ui.Choice(p.name, value=p) for p in profiles]
+            + [questionary.Separator("─" * 40), ui.Choice("← Voltar", value=None)],
         )
 
-        for index, profile in enumerate(
-            profiles,
-            start=1
-        ):
-            print(
-                f"{index} - {profile.name}"
-            )
-
-        choice = input(
-            "\nEscolha o perfil: "
-        ).strip()
-
-        if not choice.isdigit():
-
-            self.print_error(
-                "Opção inválida."
-            )
-
-            self.pause()
+        if profile is None:
             return
-
-        index = int(choice) - 1
-
-        if not 0 <= index < len(profiles):
-
-            self.print_error(
-                "Perfil de conexão inválido."
-            )
-
-            self.pause()
-            return
-
-        profile = profiles[index]
 
         print(
             f"\nPerfil selecionado: "
@@ -441,38 +323,25 @@ class LogWatcherCLI:
             "manter o valor atual."
         )
 
-        name = input(
-            f"Nome [{profile.name}]: "
-        ).strip()
+        name = input(f"Nome [{profile.name}]: ").strip()
 
-        server = input(
-            f"Servidor [{profile.server}]: "
-        ).strip()
+        server = input(f"Servidor [{profile.server}]: ").strip()
 
-        database = input(
-            f"Banco [{profile.database}]: "
-        ).strip()
+        database = input(f"Banco [{profile.database}]: ").strip()
 
-        username = input(
-            f"Usuário [{profile.username}]: "
-        ).strip()
+        username = input(f"Usuário [{profile.username}]: ").strip()
 
         name = name or profile.name
         server = server or profile.server
         database = database or profile.database
         username = username or profile.username
 
-        print(
-            "\nTabelas atualmente cadastradas:"
-        )
+        print("\nTabelas atualmente cadastradas:")
 
         if profile.tables:
-
             for table in profile.tables:
                 print(f"- {table}")
-
         else:
-
             print("- Nenhuma")
 
         print(
@@ -485,71 +354,52 @@ class LogWatcherCLI:
             "(separadas por vírgula): "
         ).strip()
 
-        new_tables = self._parse_tables(
-            tables_text
-        )
-
-        # Nenhuma tabela nova.
-        # Mantém as tabelas existentes.
-        if not new_tables:
-
-            self._save_profile_changes(
-                profile=profile,
-                name=name,
-                server=server,
-                database=database,
-                username=username,
-                tables=[],
+        try:
+            new_tables = TableParser.parse(tables_text)
+        except ValueError as error:
+            self.print_error(
+                f"{error}\n"
+                "Verifique se os nomes estão separados por vírgula (,) "
+                "e contêm apenas letras, números e underline (_)."
             )
-
+            self.pause()
+            return
+        
+        if not new_tables:
+            self.print_error(
+                "Nenhuma tabela nova informada. "
+                "Cancelando a edição — nada foi alterado."
+            )
+            self.pause()
             return
 
-        password = input(
-            "\nSenha do banco para "
-            "validar a conexão: "
-        )
+        password = ui.password(f"Senha para {username}:")
 
         connection_service = ConnectionService()
 
         try:
-
             config = self.build_config(
                 server,
                 database,
                 username,
                 password,
             )
+            print("\nValidando conexão...")
 
-            print(
-                "\nValidando conexão..."
-            )
+            connection_service.connect(config, profile_name=name)
 
-            connection_service.connect(
-                config
-            )
+            logwatcher_service = LogWatcherService(connection_service.repository)
 
-            logwatcher_service = LogWatcherService(
-                connection_service.repository
-            )
-
-            print(
-                "Validando novas tabelas..."
-            )
+            print("Validando novas tabelas...")
 
             valid_new_tables, invalid_tables = (
-                logwatcher_service.validate_tables(
-                    ",".join(new_tables)
-                )
+                logwatcher_service.validate_tables(",".join(new_tables))
             )
 
             if invalid_tables:
-
-                self._show_invalid_tables(
-                    invalid_tables
-                )
+                self._show_invalid_tables(invalid_tables)
 
             if not valid_new_tables:
-
                 self.print_error(
                     "Nenhuma das novas tabelas "
                     "é válida."
@@ -570,10 +420,10 @@ class LogWatcherCLI:
                 database=database,
                 username=username,
                 tables=valid_new_tables,
+                invalid_tables=invalid_tables,
             )
 
         except Exception as error:
-
             self.print_error(
                 f"Não foi possível atualizar "
                 f"o perfil.\n"
@@ -583,7 +433,6 @@ class LogWatcherCLI:
             self.pause()
 
         finally:
-
             connection_service.disconnect()
 
     def _save_profile_changes(
@@ -594,10 +443,9 @@ class LogWatcherCLI:
         database,
         username,
         tables,
+        invalid_tables=None,
     ):
-
         try:
-
             self.profile_service.update_profile(
                 profile_id=profile.id,
                 name=name,
@@ -605,32 +453,32 @@ class LogWatcherCLI:
                 database=database,
                 username=username,
                 tables=tables,
+                invalid_tables=invalid_tables,
             )
 
-            self.print_success(
-                "Perfil de conexão atualizado."
-            )
+            self.print_success("Perfil de conexão atualizado.")
 
             if tables:
-
-                print(
-                    "\nTabelas novas adicionadas:"
-                )
+                print("\nTabelas novas adicionadas:")
 
                 for table in tables:
                     print(f"- {table}")
 
             else:
-
                 print(
                     "\nNenhuma nova tabela "
                     "foi adicionada."
                 )
 
+            if invalid_tables:
+                print("\nTabelas não encontradas (não foram salvas):")
+
+                for table in invalid_tables:
+                    print(f"- {table}")
+
             self.pause()
 
         except Exception as error:
-
             self.print_error(
                 f"Não foi possível salvar "
                 f"o perfil.\n"
@@ -644,78 +492,38 @@ class LogWatcherCLI:
     # ==========================================================
 
     def delete_profile(self, profiles):
-
         if not profiles:
-
-            self.print_error(
-                "Nenhum perfil de conexão cadastrado."
-            )
+            self.print_error("Nenhum perfil de conexão cadastrado.")
 
             self.pause()
             return
 
-        self.print_header(
-            "Remover perfil de conexão"
+        self.print_header("Remover perfil de conexão")
+
+        profile = ui.select(
+            "Selecione o perfil a remover:",
+            [ui.Choice(p.name, value=p) for p in profiles]
+            + [questionary.Separator("─" * 40), ui.Choice("← Voltar", value=None)],
         )
 
-        for index, profile in enumerate(
-            profiles,
-            start=1
-        ):
-            print(
-                f"{index} - {profile.name}"
-            )
-
-        choice = input(
-            "\nEscolha o perfil: "
-        ).strip()
-
-        if not choice.isdigit():
-
-            self.print_error(
-                "Opção inválida."
-            )
-
-            self.pause()
+        if profile is None:
             return
-
-        index = int(choice) - 1
-
-        if not 0 <= index < len(profiles):
-
-            self.print_error(
-                "Perfil de conexão inválido."
-            )
-
-            self.pause()
-            return
-
-        profile = profiles[index]
 
         if not self.ask_confirmation(
             f"Remover o perfil "
             f"'{profile.name}'?"
         ):
-
-            print(
-                "\nOperação cancelada."
-            )
+            print("\nOperação cancelada.")
 
             self.pause()
             return
 
         try:
+            self.profile_service.delete_profile(profile.id)
 
-            self.profile_service.delete_profile(
-                profile.id
-            )
-
-            self.print_success(
-                "Perfil de conexão removido."
-            )
+            self.print_success("Perfil de conexão removido.")
 
         except Exception as error:
-
             self.print_error(
                 f"Não foi possível remover "
                 f"o perfil.\n"
@@ -729,15 +537,9 @@ class LogWatcherCLI:
     # ==========================================================
 
     def connect_to_database(self):
+        self.print_header("Conectando ao banco de dados")
 
-        self.print_header(
-            "Conectando ao banco de dados"
-        )
-
-        password = input(
-            f"Senha para "
-            f"{self.selected_profile.username}: "
-        )
+        password = ui.password(f"Senha para {self.selected_profile.username}:")
 
         config = self.build_config(
             server=self.selected_profile.server,
@@ -751,18 +553,14 @@ class LogWatcherCLI:
         )
 
         try:
-
             print("\nConectando...")
 
-            version = (
-                self.connection_service.connect(
-                    config
-                )
-            )
+            version = (self.connection_service.connect(config, profile_name=self.selected_profile.name))
 
             self.logwatcher_service = (
                 LogWatcherService(
-                    self.connection_service.repository
+                    self.connection_service.repository,
+                    profile_name=self.selected_profile.name,
                 )
             )
 
@@ -779,7 +577,6 @@ class LogWatcherCLI:
             return True
 
         except Exception as error:
-
             self.print_error(
                 f"Não foi possível conectar "
                 f"ao banco.\n"
@@ -793,12 +590,9 @@ class LogWatcherCLI:
             return False
 
     def disconnect(self):
-
         if self.connection_service:
-
             try:
                 self.connection_service.disconnect()
-
             except Exception:
                 pass
 
@@ -807,7 +601,6 @@ class LogWatcherCLI:
         self.summary = None
 
     def _ensure_connection(self):
-
         if (
             self.connection_service is None
             or self.logwatcher_service is None
@@ -829,68 +622,44 @@ class LogWatcherCLI:
     # ==========================================================
 
     def main_menu(self):
-
         while True:
+            self.print_header("LogWatcher")
 
-            self.print_header(
-                "LogWatcher"
+            questionary.print(
+                f"Perfil: {self.selected_profile.name}   "
+                f"Banco: {self.selected_profile.database}",
+                style="fg:#6e7681",
             )
 
-            print(
-                f"Perfil: "
-                f"{self.selected_profile.name}"
-            )
+            option = ui.select("O que deseja fazer?", [
+                ui.Choice("📊 Consultar Dashboard",          value="dashboard"),
+                ui.Choice("🧹 Limpar Tabela",                value="clean"),
+                ui.Choice("💾 Shrink do arquivo de Log",     value="shrink_log"),
+                ui.Choice("🗄 Shrink do arquivo de Dados",   value="shrink_data"),
+                questionary.Separator("─" * 40),
+                ui.Choice("⏏ Desconectar",                  value="exit"),
+            ])
 
-            print(
-                f"Banco: "
-                f"{self.selected_profile.database}"
-            )
-
-            print()
-            print("1 - Consultar Dashboard")
-            print("2 - Limpar Tabela")
-            print("3 - Shrink do arquivo de Log")
-            print("0 - Desconectar")
-
-            option = input(
-                "\nEscolha: "
-            ).strip()
-
-            if option == "1":
-
-                self.show_dashboard()
-
-            elif option == "2":
-
-                self.clean_table()
-
-            elif option == "3":
-
-                self.shrink_log()
-
-            elif option == "0":
-
+            if option in (None, "exit"):
                 return
-
-            else:
-
-                self.print_error(
-                    "Opção inválida."
-                )
-
-                self.pause()
+            if option == "dashboard":
+                self.show_dashboard()
+            elif option == "clean":
+                self.clean_table()
+            elif option == "shrink_log":
+                self.shrink_log()
+            elif option == "shrink_data":
+                self.shrink_data()
 
     # ==========================================================
     # DASHBOARD
     # ==========================================================
 
     def show_dashboard(self):
-
         if not self._ensure_connection():
             return
 
         if not self.selected_profile.tables:
-
             self.print_error(
                 "Nenhuma tabela de monitoramento "
                 "está configurada neste perfil."
@@ -900,10 +669,7 @@ class LogWatcherCLI:
             return
 
         try:
-
-            self.print_header(
-                "Dashboard"
-            )
+            self.print_header("Dashboard")
 
             if self._load_summary() is None:
                 return
@@ -911,7 +677,6 @@ class LogWatcherCLI:
             self._print_dashboard()
 
         except Exception as error:
-
             self.print_error(
                 f"Não foi possível consultar "
                 f"o Dashboard.\n"
@@ -921,7 +686,6 @@ class LogWatcherCLI:
             self.pause()
 
     def _print_dashboard(self):
-
         print("\nArquivos de Log")
         print("-" * 70)
 
@@ -936,7 +700,6 @@ class LogWatcherCLI:
         ]
 
         if log_data:
-
             print(
                 tabulate(
                     log_data,
@@ -949,48 +712,62 @@ class LogWatcherCLI:
                     tablefmt="grid",
                 )
             )
-
         else:
+            print("Nenhum arquivo de log encontrado.")
 
-            print(
-                "Nenhum arquivo de log encontrado."
-            )
-
-        print("\nTabelas Monitoradas")
+        print("\nArquivos de Dados (MDF/NDF)")
         print("-" * 70)
 
-        table_data = [
+        data_file_data = [
             [
-                table.name,
-                table.schema,
-                f"{table.rows:,}",
-                f"{table.total_mb:.2f}",
-                f"{table.used_mb:.2f}",
+                data_file.logical_name,
+                f"{data_file.size_mb:.2f}",
+                f"{data_file.used_mb:.2f}",
+                f"{data_file.free_mb:.2f}",
             ]
-            for table in self.summary.tables
+            for data_file in self.summary.data_files
         ]
 
+        if data_file_data:
+            print(
+                tabulate(
+                    data_file_data,
+                    headers=[
+                        "Arquivo",
+                        "Tamanho MB",
+                        "Usado MB",
+                        "Livre MB",
+                    ],
+                    tablefmt="grid",
+                )
+            )
+        else:
+            print("Nenhum arquivo de dados encontrado.")
+            
+        print("\nTabelas Monitoradas")
+        print("-" * 70)
+        table_data = [
+            [
+                f"{t.schema}.{t.name}",
+                f"{t.rows:,}",
+                f"{t.total_mb:.2f}",
+            ]
+            for t in self.summary.tables
+        ]
         if table_data:
-
             print(
                 tabulate(
                     table_data,
                     headers=[
                         "Tabela",
-                        "Schema",
                         "Linhas",
-                        "Espaço MB",
-                        "Usado MB",
+                        "Reservado (MB)",
                     ],
                     tablefmt="grid",
                 )
             )
-
         else:
-
-            print(
-                "Nenhuma tabela encontrada."
-            )
+            print("Nenhuma tabela monitorada encontrada.")
 
         print("\nResumo Geral")
         print("-" * 70)
@@ -1023,6 +800,16 @@ class LogWatcherCLI:
         print(
             f"Log utilizado       : "
             f"{self.summary.total_log_used_mb:.2f} MB"
+        )       
+        
+        print(                                   
+            f"Tamanho do MDF      : "             
+            f"{self.summary.total_data_size_mb:.2f} MB" 
+        )                                         
+
+        print(                                   
+            f"MDF utilizado       : "             
+            f"{self.summary.total_data_used_mb:.2f} MB"  
         )
 
         self.pause()
@@ -1032,17 +819,14 @@ class LogWatcherCLI:
     # ==========================================================
 
     def clean_table(self):
-
         if not self._ensure_connection():
             return
 
         if self.summary is None:
-
             if self._load_summary() is None:
                 return
 
         if not self.summary.tables:
-
             self.print_error(
                 "Nenhuma tabela monitorada "
                 "foi encontrada."
@@ -1054,87 +838,45 @@ class LogWatcherCLI:
         action = None
 
         try:
+            self.print_header("Limpeza de Tabela")
 
-            self.print_header(
-                "Limpeza de Tabela"
+            table = ui.select(
+                "Selecione a tabela:",
+                [
+                    ui.Choice(
+                        f"{t.schema.upper()}.{t.name.upper()}  "
+                        f"({t.rows} linhas / {t.total_mb:.2f} MB)",
+                        value=t,
+                    )
+                    for t in self.summary.tables
+                ] + [
+                    questionary.Separator("─" * 40),
+                    ui.Choice("← Voltar", value=None),
+                ],
             )
 
-            print(
-                "Tabelas Monitoradas"
-            )
-
-            print("-" * self.LINE)
-
-            for index, table in enumerate(
-                self.summary.tables,
-                start=1
-            ):
-
-                print(
-                    f"{index} - "
-                    f"{table.schema.upper()}."
-                    f"{table.name.upper()}"
-                )
-
-            choice = input(
-                "\nEscolha: "
-            ).strip()
-
-            if not choice.isdigit():
-
-                self.print_error(
-                    "Opção inválida."
-                )
-
-                self.pause()
+            if table is None:
                 return
 
-            index = int(choice) - 1
+            index = self.summary.tables.index(table)
 
-            if not 0 <= index < len(
-                self.summary.tables
-            ):
-
-                self.print_error(
-                    "Tabela inválida."
-                )
-
-                self.pause()
-                return
-
-            table = self.summary.tables[index]
-
-            print("\nModo de limpeza")
-
-            print(
-                "1 - TRUNCATE — "
-                "remove todos os registros"
+            action = ui.select(
+                "Modo de limpeza:",
+                [
+                    ui.Choice(
+                        "TRUNCATE — remove todos os registros (rápido, ignora FKs)",
+                        value="TRUNCATE",
+                    ),
+                    ui.Choice(
+                        "DELETE   — remove respeitando FKs (mais lento, gera log)",
+                        value="DELETE",
+                    ),
+                    questionary.Separator("─" * 40),
+                    ui.Choice("← Voltar", value=None),
+                ],
             )
 
-            print(
-                "2 - DELETE   — "
-                "remove os registros respeitando FKs"
-            )
-
-            mode = input(
-                "\nEscolha: "
-            ).strip()
-
-            if mode == "1":
-
-                action = "TRUNCATE"
-
-            elif mode == "2":
-
-                action = "DELETE"
-
-            else:
-
-                self.print_error(
-                    "Modo de limpeza inválido."
-                )
-
-                self.pause()
+            if action is None:
                 return
 
             table_name = (
@@ -1159,36 +901,19 @@ class LogWatcherCLI:
                 "Deseja realmente executar "
                 "esta operação?"
             ):
-
-                print(
-                    "\nOperação cancelada."
-                )
-
+                print("\nOperação cancelada.")
                 self.pause()
                 return
 
             if action == "TRUNCATE":
-
-                self.logwatcher_service.truncate_monitored_table(
-                    self.summary,
-                    index
-                )
-
+                self.logwatcher_service.truncate_monitored_table(self.summary, index)
             else:
+                self.logwatcher_service.delete_monitored_table(self.summary, index)
 
-                self.logwatcher_service.delete_monitored_table(
-                    self.summary,
-                    index
-                )
-
-            self.print_success(
-                f"{action} executado com sucesso."
-            )
-
+            self.print_success(f"{action} executado com sucesso.")
             self._load_summary()
 
         except Exception as error:
-
             self.print_error(
                 f"Não foi possível executar "
                 f"{action or 'a operação'}.\n"
@@ -1202,19 +927,13 @@ class LogWatcherCLI:
     # ==========================================================
 
     def shrink_log(self):
-
         if not self._ensure_connection():
             return
 
         try:
+            status, logs = (self.logwatcher_service.get_log_status())
 
-            status, logs = (
-                self.logwatcher_service.get_log_status()
-            )
-
-            self.print_header(
-                "Shrink do arquivo de Log"
-            )
+            self.print_header("Shrink do arquivo de Log")
 
             print(
                 f"Banco            : "
@@ -1236,60 +955,33 @@ class LogWatcherCLI:
                 f"{status.log_reuse_message}"
             )
 
-            print("\nArquivos de Log")
+            print("\nArquivos de Log (LDF)")
             print("-" * self.LINE)
 
-            for index, log in enumerate(
-                logs,
-                start=1
-            ):
-
-                print(
-                    f"{index} - "
-                    f"{log.logical_name} | "
-                    f"Reservado: "
-                    f"{log.size_mb:.2f} MB | "
-                    f"Usado: "
-                    f"{log.used_mb:.2f} MB | "
-                    f"Livre: "
-                    f"{log.free_mb:.2f} MB"
-                )
-
             if not logs:
-
                 self.print_error(
                     "Nenhum arquivo de log "
                     "foi encontrado."
                 )
-
                 self.pause()
                 return
 
-            choice = input(
-                "\nEscolha: "
-            ).strip()
+            log = ui.select(
+                "Selecione o arquivo de log:",
+                [
+                    ui.Choice(
+                        f"{l.logical_name}  "
+                        f"(Reservado: {l.size_mb:.2f} MB / Livre: {l.free_mb:.2f} MB)",
+                        value=l,
+                    )
+                    for l in logs
+                ] + [questionary.Separator("─" * 40), ui.Choice("← Voltar", value=None)],
+            )
 
-            if not choice.isdigit():
-
-                self.print_error(
-                    "Opção inválida."
-                )
-
-                self.pause()
+            if log is None:
                 return
 
-            index = int(choice) - 1
-
-            if not 0 <= index < len(logs):
-
-                self.print_error(
-                    "Arquivo de log inválido."
-                )
-
-                self.pause()
-                return
-
-            log = logs[index]
+            index = logs.index(log)
 
             print("\nATENÇÃO")
 
@@ -1307,26 +999,18 @@ class LogWatcherCLI:
                 f"Executar SHRINK no arquivo "
                 f"'{log.logical_name}'?"
             ):
-
-                print(
-                    "\nOperação cancelada."
-                )
+                print("\nOperação cancelada.")
 
                 self.pause()
                 return
 
             before = log.size_mb
 
-            self.logwatcher_service.shrink_log(
-                index
-            )
+            self.logwatcher_service.shrink_log(index)
 
-            _, updated_logs = (
-                self.logwatcher_service.get_log_status()
-            )
+            _, updated_logs = (self.logwatcher_service.get_log_status())
 
             if index >= len(updated_logs):
-
                 raise RuntimeError(
                     "O arquivo de log não foi "
                     "encontrado após a operação."
@@ -1334,13 +1018,9 @@ class LogWatcherCLI:
 
             after = updated_logs[index].size_mb
 
-            self.print_header(
-                "Resultado do SHRINK"
-            )
+            self.print_header("Resultado do SHRINK")
 
-            print(
-                "Operação de SHRINK concluída."
-            )
+            print("Operação de SHRINK concluída.")
 
             print("-" * self.LINE)
 
@@ -1365,7 +1045,6 @@ class LogWatcherCLI:
             )
 
             if after >= before:
-
                 print(
                     "\nO SHRINK foi executado, "
                     "porém não houve redução "
@@ -1374,7 +1053,149 @@ class LogWatcherCLI:
                 )
 
         except Exception as error:
+            self.print_error(
+                f"Não foi possível executar "
+                f"o SHRINK.\n"
+                f"Motivo: {error}"
+            )
 
+        self.pause()
+
+    def shrink_data(self):
+        if not self._ensure_connection():
+            return
+
+        try:
+            status, data_files = (self.logwatcher_service.get_data_status())
+
+            self.print_header("Shrink do arquivo de Dados")
+
+            print(
+                f"Banco            : "
+                f"{status.database_name}"
+            )
+
+            print(
+                f"Recovery Model   : "
+                f"{status.recovery_model}"
+            )
+
+            print("\nArquivos de Dados")
+            print("-" * self.LINE)
+
+            for index, data_file in enumerate(
+                data_files,
+                start=1
+            ):
+                print(
+                    f"{index} - "
+                    f"{data_file.logical_name} | "
+                    f"Reservado: "
+                    f"{data_file.size_mb:.2f} MB | "
+                    f"Usado: "
+                    f"{data_file.used_mb:.2f} MB | "
+                    f"Livre: "
+                    f"{data_file.free_mb:.2f} MB"
+                )
+
+            if not data_files:
+                self.print_error(
+                    "Nenhum arquivo de dados "
+                    "foi encontrado."
+                )
+                self.pause()
+                return
+
+            data_file = ui.select(
+                "Selecione o arquivo de dados:",
+                [
+                    ui.Choice(
+                        f"{d.logical_name}  "
+                        f"(Reservado: {d.size_mb:.2f} MB / Livre: {d.free_mb:.2f} MB)",
+                        value=d,
+                    )
+                    for d in data_files
+                ] + [questionary.Separator("─" * 40), ui.Choice("← Voltar", value=None)],
+            )
+
+            if data_file is None:
+                return
+
+            index = data_files.index(data_file)
+
+            print("\nATENÇÃO")
+
+            print(
+                "O SQL Server determinará "
+                "o menor tamanho possível."
+            )
+
+            print(
+                "Reduzir o arquivo de dados pode "
+                "gerar fragmentação de índices."
+            )
+
+            if not self.ask_confirmation(
+                f"Executar SHRINK no arquivo "
+                f"'{data_file.logical_name}'?"
+            ):
+
+                print("\nOperação cancelada.")
+                self.pause()
+                return
+
+            before = data_file.size_mb
+
+            self.logwatcher_service.shrink_data(index)
+
+            _, updated_files = (
+                self.logwatcher_service.get_data_status()
+            )
+
+            if index >= len(updated_files):
+
+                raise RuntimeError(
+                    "O arquivo de dados não foi "
+                    "encontrado após a operação."
+                )
+
+            after = updated_files[index].size_mb
+
+            self.print_header("Resultado do SHRINK")
+
+            print("Operação de SHRINK concluída.")
+
+            print("-" * self.LINE)
+
+            print(
+                f"Arquivo    : "
+                f"{data_file.logical_name}"
+            )
+
+            print(
+                f"Antes      : "
+                f"{before:.2f} MB"
+            )
+
+            print(
+                f"Depois     : "
+                f"{after:.2f} MB"
+            )
+
+            print(
+                f"Recuperado : "
+                f"{before - after:.2f} MB"
+            )
+
+            if after >= before:
+                print(
+                    "\nO SHRINK foi executado, "
+                    "porém não houve redução "
+                    "no tamanho físico "
+                    "do arquivo."
+                )
+
+        except Exception as error:
             self.print_error(
                 f"Não foi possível executar "
                 f"o SHRINK.\n"
@@ -1388,12 +1209,8 @@ class LogWatcherCLI:
     # ==========================================================
 
     def _load_summary(self):
-
         try:
-
-            tables_text = ",".join(
-                self.selected_profile.tables
-            )
+            tables_text = ",".join(self.selected_profile.tables)
 
             self.summary = (
                 self.logwatcher_service.analyze_database(
@@ -1404,7 +1221,6 @@ class LogWatcherCLI:
             return self.summary
 
         except Exception as error:
-
             self.summary = None
 
             self.print_error(
