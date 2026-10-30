@@ -6,7 +6,7 @@
 ![SQL Server](https://img.shields.io/badge/SQL%20Server-Compatible-CC2927?logo=microsoftsqlserver&logoColor=white)
 ![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
 ![License](https://img.shields.io/badge/license-MIT-green)
-[![Download](https://img.shields.io/github/v/release/SEU_USUARIO/logwatcher?label=Download&style=flat-square)](https://github.com/SEU_USUARIO/logwatcher/releases/latest)
+[![Download](https://img.shields.io/github/v/release/matheusn3silva/logwatcher?label=Download&style=flat-square)](https://github.com/matheusn3silva/logwatcher/releases/latest)
 
 ---
 
