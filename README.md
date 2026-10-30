@@ -6,6 +6,17 @@
 ![SQL Server](https://img.shields.io/badge/SQL%20Server-Compatible-CC2927?logo=microsoftsqlserver&logoColor=white)
 ![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Download](https://img.shields.io/github/v/release/SEU_USUARIO/logwatcher?label=Download&style=flat-square)](https://github.com/SEU_USUARIO/logwatcher/releases/latest)
+
+---
+
+## 📥 Download
+
+A forma mais simples de usar o LogWatcher no Windows é baixando o instalador já pronto, sem precisar instalar Python ou dependências:
+
+👉 **[Baixar a última versão](https://github.com/mathuesn3silva/logwatcher/releases/latest)**
+
+O instalador (`LogWatcher-Setup-X.X.exe`) cria atalhos para a GUI e para a CLI, e não exige privilégios de administrador por padrão.
 
 ---
 
@@ -20,7 +31,7 @@ O **LogWatcher** nasceu para facilitar o dia a dia de analistas de suporte e adm
 
 A ferramenta hoje conta com **duas interfaces completas e independentes**, que compartilham toda a lógica de negócio:
 
-- **CLI** — interface de terminal colorida, com navegação por setas
+- **CLI** — interface de terminal colorida, com navegação por setas (via `questionary`)
 - **GUI** — interface gráfica em **CustomTkinter**, com tema inspirado no **Dracula**
 
 > ⚠️ **Atenção:** o LogWatcher executa comandos destrutivos e irreversíveis no banco. Use sempre com um usuário de permissões controladas e valide o ambiente (produção x homologação) antes de confirmar qualquer operação.
@@ -31,27 +42,28 @@ A ferramenta hoje conta com **duas interfaces completas e independentes**, que c
 
 | Categoria | Recurso |
 | --- | --- |
-| **Conexão** | Conexão com SQL Server via perfis salvos em JSON |
+| **Conexão** | Conexão com SQL Server via perfis salvos em JSON (driver `mssql_python`) |
 | **Monitoramento** | Consulta das tabelas definidas em cada perfil |
 | **Dashboard** | Tabelas monitoradas, quantidade de linhas e espaço reservado/utilizado |
 | **Status do log** | `Recovery Model` e `Log Reuse Wait` |
 | **Manutenção** | `TRUNCATE TABLE`, `DELETE` e `DBCC SHRINKFILE` (automático) |
 | **Segurança** | Confirmação obrigatória antes de operações destrutivas |
 | **Auditoria** | Registro em arquivo de log diário: usuário SQL, usuário do Windows, perfil, ação e status de cada operação |
-| **CLI** | Menus navegáveis por setas e saída colorida (via `questionary`) |
+| **CLI** | Menus navegáveis por setas e saída colorida |
 | **GUI** | Interface gráfica completa (dashboard, perfis, logs e manutenção) com tema Dracula |
+| **Distribuição** | Build de executáveis Windows (GUI + CLI) via PyInstaller e instalador via Inno Setup |
 
 ---
 
 ## 🏗️ Arquitetura
 
-O projeto segue uma organização em camadas, favorecendo a separação de responsabilidades e a manutenção. A lógica de domínio é 100% compartilhada entre CLI e GUI — apenas a camada `views` muda:
+O projeto segue uma organização em camadas, favorecendo a separação de responsabilidades e a manutenção. A lógica de domínio é 100% compartilhada entre CLI e GUI — apenas a camada `views` muda, chamando os `services` diretamente:
 
 ```text
 logwatcher/
 ├── app/
 │   ├── config/          # Configurações de conexão
-│   ├── controllers/     # Orquestração entre views e services
+│   ├── controllers/     # Reservado para orquestração entre views e services (ainda não implementado)
 │   ├── models/          # Entidades de domínio (ConnectionProfile, LogTable,
 │   │                     LogFile, DataFile, DatabaseStatus, DashboardSummary,
 │   │                     ShrinkResult...)
@@ -72,6 +84,8 @@ logwatcher/
 │   └── logwatcher_audit_AAAA-MM-DD.log  # Log de auditoria diário
 ├── main.py               # Entrypoint da GUI
 ├── main_cli.py            # Entrypoint da CLI
+├── logwatcher.spec        # Build dos executáveis (PyInstaller)
+├── installer.iss          # Instalador Windows (Inno Setup)
 ├── requirements.txt
 └── README.md
 ```
@@ -79,7 +93,7 @@ logwatcher/
 | Camada | Responsabilidade |
 | --- | --- |
 | **Config** | Parâmetros e configurações de conexão |
-| **Controllers** | Ponte entre as views e os services |
+| **Controllers** | Camada reservada para orquestração entre views e services; hoje as views chamam os services diretamente |
 | **Models** | Objetos de domínio |
 | **Repositories** | Acesso e queries ao SQL Server |
 | **Services** | Regras de negócio e orquestração das operações |
@@ -161,6 +175,22 @@ Toda operação relevante (especialmente as destrutivas) é registrada em `logs/
 
 ---
 
+## 📦 Build e distribuição (Windows)
+
+O projeto já inclui a configuração para gerar executáveis standalone e um instalador Windows:
+
+1. **Gerar os executáveis (GUI + CLI)** com [PyInstaller](https://pyinstaller.org/), usando o spec já configurado (`logwatcher.spec`), que empacota o driver `mssql_python`, o CustomTkinter e os assets:
+
+   ```powershell
+   pyinstaller logwatcher.spec
+   ```
+
+   Isso gera `LogWatcher.exe` (GUI, sem console) e `LogWatcherCLI.exe` (CLI, com console) em `dist/LogWatcher/`.
+
+2. **Gerar o instalador** com [Inno Setup](https://jrsoftware.org/isinfo.php), usando `installer.iss`: cria atalhos para GUI e CLI, não exige privilégios de administrador por padrão (instala em `%LOCALAPPDATA%\Programs`) e libera escrita em `logs/` e `data/` quando instalado em modo administrador.
+
+---
+
 ## 🛠️ Tecnologias utilizadas
 
 - **Python 3.13** e Programação Orientada a Objetos
@@ -169,6 +199,7 @@ Toda operação relevante (especialmente as destrutivas) é registrada em `logs/
 - [`customtkinter`](https://pypi.org/project/customtkinter/) — interface gráfica
 - [`questionary`](https://pypi.org/project/questionary/) — menus interativos e coloridos na CLI
 - [`tabulate`](https://pypi.org/project/tabulate/) — formatação de tabelas no terminal
+- [`pyinstaller`](https://pyinstaller.org/) — empacotamento dos executáveis
 - `pathlib` — manipulação de caminhos
 - `json` — persistência dos perfis
 - `dataclasses` — modelagem dos objetos de domínio
@@ -192,11 +223,14 @@ Toda operação relevante (especialmente as destrutivas) é registrada em `logs/
 - [x] Interface gráfica com CustomTkinter (tema Dracula)
 - [x] CLI colorida com navegação por setas
 - [x] Logo e ícone do app
+- [x] Build dos executáveis via PyInstaller
+- [x] Instalador Windows via Inno Setup
 
 ### 🔜 Próxima versão
 
 - [ ] Refino visual dos diálogos de sucesso/erro da GUI (com scroll para muitas tabelas)
-- [ ] Instaladores para distribuição (Windows em primeiro lugar)
+- [ ] Camada de controllers entre views e services
+- [ ] Testes automatizados cobrindo services e repositories
 
 ---
 
